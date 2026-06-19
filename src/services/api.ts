@@ -1,7 +1,8 @@
-import type { PlayerProfile, ProgressState, WalletState } from "@/types/game";
+import type { GameMode, PlayerProfile, ProgressState, WalletState } from "@/types/game";
 import type { RankingEntry, RankingMode, RankingScope } from "@/utils/rankings";
 
 const API_BASE_URL = "https://your-api.example.com";
+const PROFILE_KEY = "logic-number-profile";
 
 export interface LoginPayload {
   code: string;
@@ -9,11 +10,30 @@ export interface LoginPayload {
   avatarUrl?: string;
 }
 
+export type RewardType = "ad_gold" | "ad_stamina" | "ad_reveal" | "ad_revive";
+
 export interface RewardVerifyPayload {
-  scene: "stamina" | "gold" | "reveal";
+  rewardType: RewardType;
+  scene?: "stamina" | "gold" | "reveal" | "revive";
   platform: string;
   adUnitId: string;
   transactionId: string;
+  openId?: string;
+}
+
+export interface SettleLevelPayload {
+  openId: string;
+  mode: GameMode;
+  isWin: boolean;
+  adMultiplier?: 1 | 3;
+  transactionId?: string;
+}
+
+export interface SettleLevelResult {
+  ok: boolean;
+  message?: string;
+  rewardCoins: number;
+  wallet?: Partial<WalletState> | null;
 }
 
 export async function loginOrRegister(payload: LoginPayload): Promise<PlayerProfile> {
@@ -33,7 +53,7 @@ export async function syncPlayerState(profile: PlayerProfile, wallet: WalletStat
   try {
     await callBackend("sync", { token: profile.token, openId: profile.openId, wallet, progress }, "/player/sync");
   } catch {
-    // 本地存储已经落盘，接口失败不阻断游戏。
+    // Local storage is already updated. Network sync should not block play.
   }
 }
 
@@ -51,12 +71,36 @@ export async function fetchLeaderboard(payload: {
 }
 
 export async function verifyRewardedAd(payload: RewardVerifyPayload): Promise<boolean> {
-  if (payload.transactionId.startsWith("mock-")) return true;
+  const openId = payload.openId || getCurrentOpenId();
+  if (payload.transactionId.startsWith("mock-") || openId.startsWith("mock-")) return true;
   try {
-    const result = await callBackend<{ verified: boolean }>("verifyReward", payload, "/ads/reward/verify");
+    const result = await callBackend<{ verified: boolean }>("verifyReward", { ...payload, openId }, "/ads/reward/verify");
     return result.verified;
   } catch {
     return false;
+  }
+}
+
+export async function settleLevelReward(payload: SettleLevelPayload): Promise<SettleLevelResult> {
+  if (!payload.openId || payload.openId.startsWith("mock-")) {
+    return mockSettleLevel(payload);
+  }
+
+  try {
+    return await callBackend<SettleLevelResult>("settleLevel", payload, "/level/settle");
+  } catch {
+    return mockSettleLevel(payload);
+  }
+}
+
+export async function bindInviter(payload: { openId: string; inviteBy: string }): Promise<{ ok: boolean; message?: string }> {
+  if (!payload.openId || !payload.inviteBy || payload.openId === payload.inviteBy) return { ok: false };
+  if (payload.openId.startsWith("mock-") || payload.inviteBy.startsWith("mock-")) return { ok: true };
+
+  try {
+    return await callBackend<{ ok: boolean; message?: string }>("bindInviter", payload, "/invite/bind");
+  } catch {
+    return { ok: false };
   }
 }
 
@@ -111,5 +155,31 @@ function createMockProfile(nickname: string, avatarUrl = ""): PlayerProfile {
     nickname: nickname || "数字玩家",
     avatarUrl,
     registeredAt: Date.now(),
+  };
+}
+
+function getCurrentOpenId(): string {
+  try {
+    const profile = uni.getStorageSync(PROFILE_KEY) as PlayerProfile | undefined;
+    return profile?.openId || "";
+  } catch {
+    return "";
+  }
+}
+
+function mockSettleLevel(payload: SettleLevelPayload): SettleLevelResult {
+  const rewards: Record<GameMode, number> = {
+    simple: 10,
+    hard: 18,
+    daily: 0,
+    speedrun: 0,
+    battleCheckpoint: 20,
+    battleSpeed: 10,
+  };
+  const multiplier = payload.adMultiplier === 3 ? 3 : 1;
+  return {
+    ok: payload.isWin,
+    rewardCoins: (rewards[payload.mode] || 0) * multiplier,
+    wallet: null,
   };
 }

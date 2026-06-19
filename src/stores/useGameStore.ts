@@ -10,7 +10,7 @@ import type {
   PuzzleState,
   WalletState,
 } from "@/types/game";
-import { loginOrRegister, syncPlayerState } from "@/services/api";
+import { bindInviter, loginOrRegister, settleLevelReward as settleLevelRewardApi, syncPlayerState } from "@/services/api";
 import { readStorage, removeStorage, storageKeys, writeStorage } from "@/services/storage";
 import {
   compareDigits,
@@ -63,6 +63,7 @@ const defaultModeLevels = (): Record<GameMode, number> => ({
 
 const defaultWallet = (): WalletState => ({
   stamina: 100,
+  staminaLimit: MAX_STAMINA,
   gold: 80,
   revealTools: 1,
   lastStaminaAt: Date.now(),
@@ -133,6 +134,8 @@ export const useGameStore = defineStore("game", {
     inputText: (state) => state.input.join(""),
     availableDigits: () => DIGITS,
     attemptsLeft: (state) => Math.max(0, MAX_GUESSES - state.guesses.length),
+    staminaLimit: (state) => state.wallet.staminaLimit || MAX_STAMINA,
+    totalClears: (state) => Object.values(state.progress.bestModeLevels || {}).reduce((sum, level) => sum + Math.max(0, Number(level || 1) - 1), 0),
     dailyAttemptsLeft: (state) => Math.max(0, DAILY_CHALLENGE_LIMIT - state.progress.dailyAttemptsUsed),
     speedrunAttemptsLeft: (state) => Math.max(0, SPEEDRUN_CHALLENGE_LIMIT - state.progress.speedrunAttemptsUsed),
     staminaRecoverRuleText: () => `每 ${STAMINA_RECOVER_MS / 60000} 分钟恢复 ${STAMINA_RECOVER_AMOUNT} 点体力`,
@@ -260,6 +263,11 @@ export const useGameStore = defineStore("game", {
       this.startedAt = Date.now();
       this.speedrunRevealUsed = 0;
       this.progress.speedrunRevealUsed = 0;
+      if (this.totalClears <= 3 && this.puzzle.secret.length > 0) {
+        this.input[0] = this.puzzle.secret[0];
+        this.locked[0] = true;
+        this.puzzle.noviceReveal = true;
+      }
       this.persistAll();
       return { ok: true, message: "关卡已开始。" };
     },
@@ -316,13 +324,12 @@ export const useGameStore = defineStore("game", {
       }
 
       if (this.guesses.length >= MAX_GUESSES) {
-        const answer = this.puzzle.secret;
-        this.failPuzzle();
+        this.persistPuzzle();
         return {
           ok: true,
           solved: false,
           failed: true,
-          message: `三次机会已用完，正确答案是 ${answer}。`,
+          message: "三次机会已用完，可看视频额外获得 1 次机会。",
         };
       }
 
@@ -383,7 +390,7 @@ export const useGameStore = defineStore("game", {
 
     grantStamina(amount: number) {
       this.recoverStamina();
-      this.wallet.stamina = Math.min(MAX_STAMINA, this.wallet.stamina + amount);
+      this.wallet.stamina = Math.min(this.staminaLimit, this.wallet.stamina + amount);
       this.wallet.lastStaminaAt = Date.now();
       this.persistWallet();
     },
@@ -398,6 +405,48 @@ export const useGameStore = defineStore("game", {
       this.persistWallet();
     },
 
+    reviveCurrentPuzzle(): { ok: boolean; message: string } {
+      if (!this.puzzle) return { ok: false, message: "请先开始关卡。" };
+      if (this.guesses.length < MAX_GUESSES) return { ok: false, message: "当前还没有用完机会。" };
+      this.guesses = this.guesses.slice(0, MAX_GUESSES - 1);
+      this.input = this.input.map((value, index) => (this.locked[index] ? value : ""));
+      this.persistPuzzle();
+      return { ok: true, message: "已额外获得 1 次机会。" };
+    },
+
+    async settleLevelReward(adMultiplier: 1 | 3 = 1, transactionId = ""): Promise<{ ok: boolean; message: string; rewardCoins: number }> {
+      if (!this.profile) return { ok: false, message: "请先登录。", rewardCoins: 0 };
+      const mode = this.progress.selectedMode;
+      const result = await settleLevelRewardApi({
+        openId: this.profile.openId,
+        mode,
+        isWin: true,
+        adMultiplier,
+        transactionId,
+      });
+
+      if (!result.ok) {
+        return { ok: false, message: result.message || "结算失败，请稍后重试。", rewardCoins: 0 };
+      }
+
+      if (result.wallet) {
+        this.applyRemoteWallet(result.wallet);
+      } else if (result.rewardCoins > 0) {
+        this.wallet.gold += result.rewardCoins;
+      }
+      this.persistWallet();
+      await this.syncCloud();
+      return { ok: true, message: `获得 ${result.rewardCoins} 金币。`, rewardCoins: result.rewardCoins };
+    },
+
+    async bindPendingInviter() {
+      if (!this.profile) return;
+      const inviteBy = readStorage<string>(storageKeys.pendingInviteBy, "");
+      if (!inviteBy || inviteBy === this.profile.openId) return;
+      const result = await bindInviter({ openId: this.profile.openId, inviteBy });
+      if (result.ok) removeStorage(storageKeys.pendingInviteBy);
+    },
+
     claimDailySignIn(): { ok: boolean; message: string } {
       const today = todayKey();
       if (this.progress.signInDate === today) {
@@ -407,7 +456,7 @@ export const useGameStore = defineStore("game", {
       this.progress.signInDate = today;
       this.progress.signInHistory[today] = reward.label;
       this.wallet.gold += reward.gold;
-      this.wallet.stamina = Math.min(MAX_STAMINA, this.wallet.stamina + reward.stamina);
+      this.wallet.stamina = Math.min(this.staminaLimit, this.wallet.stamina + reward.stamina);
       this.wallet.revealTools += reward.revealTools;
       this.persistAll();
       return { ok: true, message: `签到成功，获得 ${reward.label}。` };
@@ -423,14 +472,14 @@ export const useGameStore = defineStore("game", {
       const reward = LOTTERY_REWARDS[index];
       this.progress.lotteryDate = today;
       this.wallet.gold += reward.gold;
-      this.wallet.stamina = Math.min(MAX_STAMINA, this.wallet.stamina + reward.stamina);
+      this.wallet.stamina = Math.min(this.staminaLimit, this.wallet.stamina + reward.stamina);
       this.wallet.revealTools += reward.revealTools;
       this.persistAll();
       return { ok: true, message: `抽奖获得：${reward.label}。`, rewardIndex: index };
     },
 
     recoverStamina() {
-      if (this.wallet.stamina >= MAX_STAMINA) {
+      if (this.wallet.stamina >= this.staminaLimit) {
         this.wallet.lastStaminaAt = Date.now();
         this.persistWallet();
         return;
@@ -440,7 +489,7 @@ export const useGameStore = defineStore("game", {
       const recovered = Math.floor(elapsed / STAMINA_RECOVER_MS);
       if (recovered <= 0) return;
 
-      this.wallet.stamina = Math.min(MAX_STAMINA, this.wallet.stamina + recovered * STAMINA_RECOVER_AMOUNT);
+      this.wallet.stamina = Math.min(this.staminaLimit, this.wallet.stamina + recovered * STAMINA_RECOVER_AMOUNT);
       this.wallet.lastStaminaAt += recovered * STAMINA_RECOVER_MS;
       this.persistWallet();
     },
@@ -449,6 +498,20 @@ export const useGameStore = defineStore("game", {
       if (this.progress.selectedMode !== "daily" || !this.startedAt || !this.puzzle) return;
       const elapsed = Math.floor((Date.now() - this.startedAt) / 1000);
       this.dailyLeftSeconds = Math.max(0, 100 - elapsed);
+    },
+
+    applyRemoteWallet(remoteWallet: Partial<WalletState>) {
+      const remoteGold = Number((remoteWallet as WalletState & { coins?: number }).gold ?? (remoteWallet as WalletState & { coins?: number }).coins);
+      this.wallet = normalizeWallet({
+        ...this.wallet,
+        ...remoteWallet,
+        gold: Number.isFinite(remoteGold) ? remoteGold : this.wallet.gold,
+        revealTools: remoteWallet.revealTools ?? this.wallet.revealTools,
+        stamina: remoteWallet.stamina ?? this.wallet.stamina,
+        staminaLimit: remoteWallet.staminaLimit ?? this.wallet.staminaLimit,
+        lastStaminaAt: remoteWallet.lastStaminaAt ?? this.wallet.lastStaminaAt,
+      });
+      this.persistWallet();
     },
 
     async syncCloud() {
@@ -500,7 +563,7 @@ export const useGameStore = defineStore("game", {
     applyDailyGift() {
       const today = todayKey();
       if (this.progress.dailyDate === today) return;
-      this.wallet.stamina = Math.min(MAX_STAMINA, this.wallet.stamina + 15);
+      this.wallet.stamina = Math.min(this.staminaLimit, this.wallet.stamina + 15);
       this.progress.dailyDate = today;
       this.progress.dailyFinished = false;
     },
@@ -521,7 +584,6 @@ export const useGameStore = defineStore("game", {
       let message = "恭喜，数字全部正确。";
 
       if (mode === "simple") {
-        this.wallet.gold += reward;
         this.progress.modeLevels.simple += 1;
         this.progress.bestModeLevels.simple = Math.max(this.progress.bestModeLevels.simple, this.progress.modeLevels.simple);
         this.progress.endlessLevel = this.progress.modeLevels.simple;
@@ -530,14 +592,13 @@ export const useGameStore = defineStore("game", {
       }
 
       if (mode === "hard") {
-        this.wallet.gold += reward;
         this.progress.modeLevels.hard += 1;
         this.progress.bestModeLevels.hard = Math.max(this.progress.bestModeLevels.hard, this.progress.modeLevels.hard);
         message = `困难模式闯关成功，获得 ${reward} 金币。`;
       }
 
       if (mode === "daily") {
-        this.wallet.stamina = Math.min(MAX_STAMINA, this.wallet.stamina + 15);
+        this.wallet.stamina = Math.min(this.staminaLimit, this.wallet.stamina + 15);
         this.progress.dailyFinished = true;
         this.progress.modeLevels.daily += 1;
         this.progress.bestModeLevels.daily = Math.max(this.progress.bestModeLevels.daily, this.progress.modeLevels.daily);
@@ -546,7 +607,7 @@ export const useGameStore = defineStore("game", {
 
       if (mode === "speedrun") {
         const elapsed = Date.now() - this.startedAt;
-        this.wallet.stamina = Math.min(MAX_STAMINA, this.wallet.stamina + 15);
+        this.wallet.stamina = Math.min(this.staminaLimit, this.wallet.stamina + 15);
         this.progress.bestSpeedMs = this.progress.bestSpeedMs ? Math.min(this.progress.bestSpeedMs, elapsed) : elapsed;
         this.progress.modeLevels.speedrun += 1;
         this.progress.bestModeLevels.speedrun = Math.max(this.progress.bestModeLevels.speedrun, this.progress.modeLevels.speedrun);
@@ -556,7 +617,6 @@ export const useGameStore = defineStore("game", {
       if (mode === "battleCheckpoint" && this.battle) {
         this.battle.completed += 1;
         if (this.battle.completed >= this.battle.target) {
-          this.wallet.gold += 20;
           this.progress.modeLevels.battleCheckpoint += 1;
           this.progress.bestModeLevels.battleCheckpoint = Math.max(
             this.progress.bestModeLevels.battleCheckpoint,
@@ -571,7 +631,6 @@ export const useGameStore = defineStore("game", {
 
       if (mode === "battleSpeed" && this.battle) {
         const elapsed = Date.now() - this.startedAt;
-        this.wallet.gold += 10;
         this.progress.modeLevels.battleSpeed += 1;
         this.progress.bestModeLevels.battleSpeed = Math.max(this.progress.bestModeLevels.battleSpeed, this.progress.modeLevels.battleSpeed);
         message = `竞速对战完成，用时 ${(elapsed / 1000).toFixed(2)} 秒，金币 +10。`;
@@ -626,6 +685,7 @@ function normalizeWallet(wallet: WalletState): WalletState {
   return {
     ...fallback,
     ...wallet,
+    staminaLimit: wallet.staminaLimit ?? fallback.staminaLimit,
     revealTools: wallet.revealTools ?? fallback.revealTools,
     lastStaminaAt: wallet.lastStaminaAt || Date.now(),
   };

@@ -46,6 +46,7 @@ export interface PuzzleState {
   createdAt: number;
   seed?: string;
   round?: number;
+  noviceReveal?: boolean;
 }
 
 export interface GuessRecord {
@@ -66,6 +67,7 @@ export interface PlayerProfile {
 
 export interface WalletState {
   stamina: number;
+  staminaLimit: number;
   gold: number;
   revealTools: number;
   lastStaminaAt: number;

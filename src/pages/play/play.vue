@@ -32,6 +32,7 @@
             <text>{{ game.input[index] }}</text>
           </view>
         </view>
+        <text v-if="game.puzzle.noviceReveal" class="novice-tip">新手福利：已为您揭晓一位数字</text>
       </view>
 
       <view class="clue-panel game-card">
@@ -100,6 +101,17 @@
       <button class="game-btn game-btn--ghost modal-action" @tap="watchRevealAd()">看广告使用一次</button>
     </view>
 
+    <view v-if="reviveModal.visible" class="result-mask"></view>
+    <view v-if="reviveModal.visible" class="result-modal revive-modal">
+      <view class="revive-icon">!</view>
+      <text class="result-title">差一点点就猜中啦！</text>
+      <text class="revive-copy">看视频可以额外获得 1 次机会，继续推理当前题目。</text>
+      <button class="revive-button" :disabled="reviveModal.busy" @tap="watchReviveAd()">
+        {{ reviveModal.busy ? "视频加载中..." : "看视频额外获得1次机会" }}
+      </button>
+      <button class="giveup-button" :disabled="reviveModal.busy" @tap="giveUpAfterFailure()">放弃重来</button>
+    </view>
+
     <view v-if="resultModal.visible" class="result-mask"></view>
     <view v-if="resultModal.visible" class="result-modal">
       <view class="success-icon">✓</view>
@@ -118,7 +130,17 @@
           <text>{{ resultModal.progressText }}</text>
         </view>
       </view>
-      <button class="next-button" @tap="continueAfterResult()">{{ resultModal.canContinue ? "下一关" : "完成" }}</button>
+      <button
+        v-if="resultModal.rewardCoins > 0"
+        class="triple-button"
+        :disabled="rewardClaimBusy"
+        @tap="claimTripleReward()"
+      >
+        {{ rewardClaimBusy ? "领取中..." : `看视频领取 3 倍奖励（${tripleRewardCoins} 金币）` }}
+      </button>
+      <button class="next-button" :disabled="rewardClaimBusy" @tap="claimNormalReward()">
+        {{ resultModal.rewardCoins > 0 ? "普通领取" : resultModal.canContinue ? "下一关" : "完成" }}
+      </button>
       <button class="home-button" @tap="goHome()">返回主页</button>
     </view>
   </view>
@@ -134,6 +156,7 @@ const game = useGameStore();
 const digits = DIGITS;
 const showRevealPanel = ref(false);
 const nowTick = ref(Date.now());
+const rewardClaimBusy = ref(false);
 let timer: number | undefined;
 const revealCost = computed(() => String(REVEAL_TOOL_COST));
 
@@ -143,6 +166,11 @@ const resultModal = reactive({
   costStamina: 0,
   progressText: "",
   canContinue: false,
+});
+
+const reviveModal = reactive({
+  visible: false,
+  busy: false,
 });
 
 const modeName = computed(() => {
@@ -160,6 +188,7 @@ const modeName = computed(() => {
 const currentLevel = computed(() => game.puzzle?.round ?? game.progress.modeLevels[game.progress.selectedMode] ?? 1);
 const attemptsText = computed(() => `${game.attemptsLeft}/3`);
 const showTimer = computed(() => game.progress.selectedMode === "daily" || game.progress.selectedMode === "speedrun");
+const tripleRewardCoins = computed(() => resultModal.rewardCoins * 3);
 const speedrunRevealText = computed(() => {
   if (game.progress.selectedMode !== "speedrun") return "";
   return `极速竞赛每局只能使用 ${SPEEDRUN_REVEAL_LIMIT} 个显真镜，本局已用 ${game.speedrunRevealUsed}/${SPEEDRUN_REVEAL_LIMIT}`;
@@ -188,7 +217,7 @@ onUnmounted(() => {
 function submit() {
   if (!game.puzzle) return;
 
-  const rewardCoins = game.puzzle.difficulty.rewardGold;
+  const rewardCoins = levelRewardForMode();
   const costStamina = game.puzzle.difficulty.staminaCost;
   const levelBefore = currentLevel.value;
   const result = game.submitGuess();
@@ -200,19 +229,7 @@ function submit() {
 
   if (!result.solved) {
     if (result.failed) {
-      uni.showModal({
-        title: "机会用完",
-        content: result.message,
-        confirmText: "回主页",
-        cancelText: "再来",
-        success: (res) => {
-          if (res.confirm) {
-            goHome();
-          } else {
-            restartCurrentMode();
-          }
-        },
-      });
+      reviveModal.visible = true;
       return;
     }
     uni.showToast({ title: result.message, icon: "none" });
@@ -224,6 +241,43 @@ function submit() {
   resultModal.canContinue = canContinueAfterSuccess();
   resultModal.progressText = resultModal.canContinue ? `第 ${levelBefore + 1} 关已解锁` : result.message;
   resultModal.visible = true;
+}
+
+async function claimTripleReward() {
+  if (rewardClaimBusy.value) return;
+  rewardClaimBusy.value = true;
+  try {
+    const reward = await adManager.showRewardedVideoAd("triple");
+    if (!reward.granted) {
+      uni.showToast({ title: "广告未完成", icon: "none" });
+      return;
+    }
+    await settleAndContinue(3, reward.transactionId);
+  } finally {
+    rewardClaimBusy.value = false;
+  }
+}
+
+async function claimNormalReward() {
+  if (rewardClaimBusy.value) return;
+  rewardClaimBusy.value = true;
+  try {
+    await settleAndContinue(1);
+  } finally {
+    rewardClaimBusy.value = false;
+  }
+}
+
+async function settleAndContinue(adMultiplier: 1 | 3, transactionId = "") {
+  if (resultModal.rewardCoins > 0) {
+    const settled = await game.settleLevelReward(adMultiplier, transactionId);
+    if (!settled.ok) {
+      uni.showToast({ title: settled.message, icon: "none" });
+      return;
+    }
+    uni.showToast({ title: adMultiplier === 3 ? `3倍奖励 +${settled.rewardCoins}` : `金币 +${settled.rewardCoins}`, icon: "none" });
+  }
+  continueAfterResult();
 }
 
 function continueAfterResult() {
@@ -247,10 +301,45 @@ function continueAfterResult() {
   });
 }
 
+async function watchReviveAd() {
+  if (reviveModal.busy) return;
+  reviveModal.busy = true;
+  try {
+    const reward = await adManager.showRewardedVideoAd("revive");
+    if (!reward.granted) {
+      uni.showToast({ title: "广告未完成", icon: "none" });
+      return;
+    }
+    const revived = game.reviveCurrentPuzzle();
+    if (!revived.ok) {
+      uni.showToast({ title: revived.message, icon: "none" });
+      return;
+    }
+    reviveModal.visible = false;
+    uni.showToast({ title: revived.message, icon: "none" });
+  } finally {
+    reviveModal.busy = false;
+  }
+}
+
+function giveUpAfterFailure() {
+  reviveModal.visible = false;
+  game.failPuzzle();
+  restartCurrentMode();
+}
+
 function canContinueAfterSuccess() {
   const mode = game.progress.selectedMode;
   if (mode === "simple" || mode === "hard") return true;
   return mode === "battleCheckpoint" && Boolean(game.battle);
+}
+
+function levelRewardForMode() {
+  const mode = game.progress.selectedMode;
+  if (mode === "simple" || mode === "hard") return game.puzzle?.difficulty.rewardGold ?? 0;
+  if (mode === "battleSpeed") return 10;
+  if (mode === "battleCheckpoint" && game.battle && game.battle.completed + 1 >= game.battle.target) return 20;
+  return 0;
 }
 
 function restartCurrentMode() {
@@ -403,6 +492,18 @@ function formatDuration(totalSeconds: number) {
   border-radius: 28rpx;
   background: linear-gradient(135deg, rgba(46, 204, 113, 0.96), rgba(74, 144, 226, 0.92));
   box-shadow: 0 8rpx 0 rgba(0, 0, 0, 0.18);
+}
+
+.novice-tip {
+  display: block;
+  margin-top: 18rpx;
+  padding: 14rpx 18rpx;
+  border-radius: 18rpx;
+  background: rgba(255, 247, 216, 0.92);
+  color: #2c3e50;
+  font-size: 24rpx;
+  font-weight: 900;
+  text-align: center;
 }
 
 .digit-cells {
@@ -733,6 +834,28 @@ function formatDuration(totalSeconds: number) {
   box-shadow: 0 6rpx 0 rgba(26, 139, 76, 0.65);
 }
 
+.revive-icon {
+  width: 112rpx;
+  height: 112rpx;
+  margin: 0 auto 16rpx;
+  border-radius: 50%;
+  background: #e67e22;
+  color: #fff;
+  font-size: 72rpx;
+  font-weight: 1000;
+  line-height: 112rpx;
+  box-shadow: 0 6rpx 0 rgba(174, 91, 22, 0.65);
+}
+
+.revive-copy {
+  display: block;
+  margin: 18rpx auto 4rpx;
+  max-width: 520rpx;
+  color: #8a98a8;
+  font-size: 25rpx;
+  line-height: 1.5;
+}
+
 .result-title {
   color: #2ecc71;
   font-size: 48rpx;
@@ -765,6 +888,9 @@ function formatDuration(totalSeconds: number) {
   color: #e67e22;
 }
 
+.triple-button,
+.revive-button,
+.giveup-button,
 .next-button,
 .home-button {
   width: 100%;
@@ -775,18 +901,30 @@ function formatDuration(totalSeconds: number) {
   font-weight: 900;
 }
 
+.triple-button,
+.revive-button {
+  background: linear-gradient(180deg, #55f08f, #2ecc71);
+  color: #fff;
+  box-shadow: 0 6rpx 0 rgba(26, 139, 76, 0.72), 0 0 28rpx rgba(46, 204, 113, 0.42);
+  animation: glowPulse 1.2s ease-in-out infinite;
+}
+
 .next-button {
   background: #2ecc71;
   color: #fff;
   box-shadow: 0 5rpx 0 rgba(26, 139, 76, 0.7);
-  animation: jumpPulse 1.15s ease-in-out infinite;
 }
 
-.home-button {
+.home-button,
+.giveup-button {
   border: 2rpx solid #d8e5ee;
   background: #f7fbff;
   color: #2c3e50;
   box-shadow: 0 4rpx 0 rgba(44, 62, 80, 0.12);
+}
+
+.giveup-button {
+  color: #8a98a8;
 }
 
 @keyframes popIn {
@@ -807,6 +945,18 @@ function formatDuration(totalSeconds: number) {
   }
   50% {
     transform: translateY(-6rpx);
+  }
+}
+
+@keyframes glowPulse {
+  0%,
+  100% {
+    transform: translateY(0);
+    box-shadow: 0 6rpx 0 rgba(26, 139, 76, 0.72), 0 0 18rpx rgba(46, 204, 113, 0.35);
+  }
+  50% {
+    transform: translateY(-6rpx);
+    box-shadow: 0 8rpx 0 rgba(26, 139, 76, 0.68), 0 0 36rpx rgba(46, 204, 113, 0.62);
   }
 }
 </style>

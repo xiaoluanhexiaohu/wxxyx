@@ -3,6 +3,7 @@ const WALLET_KEY = "logic-number-wallet";
 const PROGRESS_KEY = "logic-number-progress";
 const PUZZLE_KEY = "logic-number-current-puzzle";
 const SESSION_KEY = "logic-number-current-session";
+const PENDING_INVITE_BY_KEY = "logic-number-pending-invite-by";
 
 export const storageKeys = {
   profile: PROFILE_KEY,
@@ -10,6 +11,7 @@ export const storageKeys = {
   progress: PROGRESS_KEY,
   puzzle: PUZZLE_KEY,
   session: SESSION_KEY,
+  pendingInviteBy: PENDING_INVITE_BY_KEY,
 };
 
 export function readStorage<T>(key: string, fallback: T): T {

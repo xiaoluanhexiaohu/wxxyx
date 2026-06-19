@@ -1,9 +1,20 @@
 <script setup lang="ts">
-import { onLaunch } from "@dcloudio/uni-app";
+import { onLaunch, onShow } from "@dcloudio/uni-app";
+import { writeStorage, storageKeys } from "@/services/storage";
 
-onLaunch(() => {
+onLaunch((options) => {
+  saveInviteBy(options?.query?.inviteBy);
   // Keep app startup light. Page-level stores and ads are initialized only when the user reaches them.
 });
+
+onShow((options) => {
+  saveInviteBy(options?.query?.inviteBy);
+});
+
+function saveInviteBy(inviteBy?: string) {
+  if (!inviteBy) return;
+  writeStorage(storageKeys.pendingInviteBy, inviteBy);
+}
 </script>
 
 <style>

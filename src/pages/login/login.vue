@@ -19,9 +19,10 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
+import { useGameStore } from "@/stores/useGameStore";
 
-const PROFILE_KEY = "logic-number-profile";
 const LOGIN_TIMEOUT_MS = 1800;
+const game = useGameStore();
 
 interface WechatUserInfo {
   nickName?: string;
@@ -32,10 +33,6 @@ interface WechatProfileResult {
   userInfo?: WechatUserInfo;
 }
 
-interface WechatLoginResult {
-  code?: string;
-}
-
 const nickname = ref("数字玩家");
 const loading = ref(false);
 
@@ -44,20 +41,11 @@ async function handleWechatLogin() {
 
   loading.value = true;
   try {
+    await game.bootstrap();
     const userInfo = await getWechatUserInfo();
-    const loginResult = await loginWithTimeout();
     const displayName = userInfo.nickName || nickname.value.trim() || "数字玩家";
-    const code = loginResult.code || `mock-code-${Date.now()}`;
-
-    uni.setStorageSync(PROFILE_KEY, {
-      openId: `wx-${code}`,
-      token: `wx-token-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      nickname: displayName,
-      avatarUrl: userInfo.avatarUrl || "",
-      loginCode: code,
-      platform: "weixin",
-      registeredAt: Date.now(),
-    });
+    await game.registerOrLogin(displayName, userInfo.avatarUrl || "");
+    await game.bindPendingInviter();
 
     uni.showToast({ title: "登录成功", icon: "success" });
     setTimeout(() => {
@@ -89,19 +77,6 @@ function getWechatUserInfo(): Promise<WechatUserInfo> {
       getUserProfile({
         desc: "用于绑定微信账号并展示玩家昵称头像",
         success: (res) => resolve(res.userInfo || {}),
-        fail: () => resolve({}),
-      });
-    }),
-    {},
-  );
-}
-
-function loginWithTimeout(): Promise<WechatLoginResult> {
-  return withTimeout(
-    new Promise((resolve) => {
-      uni.login({
-        provider: "weixin",
-        success: (res) => resolve({ code: res.code }),
         fail: () => resolve({}),
       });
     }),

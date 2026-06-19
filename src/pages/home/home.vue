@@ -28,7 +28,7 @@
             <text class="resource-icon">⚡</text>
             <view>
               <text class="resource-label">体力</text>
-              <text class="resource-value">{{ game.wallet.stamina }}/100</text>
+              <text class="resource-value">{{ game.wallet.stamina }}/{{ game.staminaLimit }}</text>
             </view>
           </view>
           <button class="resource-plus" @tap="watchStaminaAd()">+</button>
@@ -59,6 +59,14 @@
           <text class="resource-tip">随机显示一位答案</text>
         </view>
       </view>
+
+      <button class="invite-banner" open-type="share" @tap="shareInvite()">
+        <view>
+          <text class="invite-title">邀请 1 个新玩家</text>
+          <text class="invite-sub">永久提升 20 点体力上限</text>
+        </view>
+        <text class="invite-cta">去邀请</text>
+      </button>
 
       <view class="section-head">
         <text class="section-title">选择模式</text>
@@ -252,7 +260,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
-import { onShow } from "@dcloudio/uni-app";
+import { onLoad, onShareAppMessage, onShow } from "@dcloudio/uni-app";
 import {
   useGameStore,
   LOTTERY_REWARDS,
@@ -266,6 +274,7 @@ import {
 import type { BattleType, DifficultyKey, GameMode } from "@/types/game";
 import { adManager } from "@/utils/adManager";
 import { fetchLeaderboard } from "@/services/api";
+import { storageKeys, writeStorage } from "@/services/storage";
 import { createLeaderboard, type RankingEntry, type RankingMode, type RankingScope } from "@/utils/rankings";
 
 const game = useGameStore();
@@ -348,6 +357,10 @@ onUnmounted(() => {
   if (clockTimer) clearInterval(clockTimer);
 });
 
+onLoad((query) => {
+  if (query?.inviteBy) writeStorage(storageKeys.pendingInviteBy, String(query.inviteBy));
+});
+
 onShow(async () => {
   ready.value = false;
   loadError.value = "";
@@ -357,12 +370,18 @@ onShow(async () => {
       uni.reLaunch({ url: "/pages/login/login" });
       return;
     }
+    await game.bindPendingInviter();
     ready.value = true;
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : "未知错误";
     ready.value = true;
   }
 });
+
+onShareAppMessage(() => ({
+  title: "逻辑大师：来挑战数字推理",
+  path: `/pages/home/home?inviteBy=${encodeURIComponent(game.profile?.openId || "")}`,
+}));
 
 function goLogin() {
   uni.reLaunch({ url: "/pages/login/login" });
@@ -375,6 +394,10 @@ function startGame(mode: GameMode, difficulty: DifficultyKey) {
     return;
   }
   uni.navigateTo({ url: "/pages/play/play" });
+}
+
+function shareInvite() {
+  uni.showToast({ title: "点击右上角或按钮分享给好友", icon: "none" });
 }
 
 function openBattleMode(type: BattleType) {
@@ -505,8 +528,8 @@ async function watchGoldAd() {
     uni.showToast({ title: "广告未完成", icon: "none" });
     return;
   }
-  game.grantGold(60);
-  uni.showToast({ title: "金币 +60", icon: "none" });
+  game.grantGold(80);
+  uni.showToast({ title: "金币 +80", icon: "none" });
 }
 </script>
 
@@ -670,6 +693,47 @@ async function watchGoldAd() {
   color: #8a98a8;
   font-size: 18rpx;
   line-height: 1.25;
+}
+
+.invite-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 112rpx;
+  margin-top: 22rpx;
+  padding: 22rpx 26rpx;
+  border: 0;
+  border-radius: 24rpx;
+  background: linear-gradient(135deg, #f1c40f, #2ecc71);
+  box-shadow: 0 7rpx 0 rgba(17, 126, 76, 0.45);
+  text-align: left;
+}
+
+.invite-title,
+.invite-sub,
+.invite-cta {
+  display: block;
+  color: #ffffff;
+  font-weight: 900;
+  text-shadow: 0 2rpx 0 rgba(0, 0, 0, 0.18);
+}
+
+.invite-title {
+  font-size: 31rpx;
+}
+
+.invite-sub {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+}
+
+.invite-cta {
+  flex-shrink: 0;
+  padding: 14rpx 20rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.24);
+  font-size: 24rpx;
 }
 
 .section-head {
