@@ -29,6 +29,28 @@ export const SPEEDRUN_CHALLENGE_LIMIT = 2;
 export const STAMINA_RECOVER_MS = 12 * 60 * 1000;
 export const STAMINA_RECOVER_AMOUNT = 1;
 export const REVEAL_TOOL_COST = 80;
+export const SPEEDRUN_REVEAL_LIMIT = 1;
+
+export const LOTTERY_REWARDS = [
+  { key: "gold10", gold: 10, stamina: 0, revealTools: 0, label: "10金币" },
+  { key: "gold20", gold: 20, stamina: 0, revealTools: 0, label: "20金币" },
+  { key: "stamina10", gold: 0, stamina: 10, revealTools: 0, label: "10体力" },
+  { key: "stamina20", gold: 0, stamina: 20, revealTools: 0, label: "20体力" },
+  { key: "reveal1", gold: 0, stamina: 0, revealTools: 1, label: "1个显真镜" },
+  { key: "reveal2", gold: 0, stamina: 0, revealTools: 2, label: "2个显真镜" },
+] as const;
+
+export type LotteryRewardIndex = 0 | 1 | 2 | 3 | 4 | 5;
+
+export const SIGN_IN_REWARDS = [
+  { gold: 10, stamina: 0, revealTools: 0, label: "10金币" },
+  { gold: 0, stamina: 10, revealTools: 0, label: "10体力" },
+  { gold: 20, stamina: 0, revealTools: 0, label: "20金币" },
+  { gold: 0, stamina: 20, revealTools: 0, label: "20体力" },
+  { gold: 0, stamina: 0, revealTools: 1, label: "1个显真镜" },
+  { gold: 30, stamina: 0, revealTools: 0, label: "30金币" },
+  { gold: 0, stamina: 0, revealTools: 2, label: "2个显真镜" },
+] as const;
 
 const defaultModeLevels = (): Record<GameMode, number> => ({
   simple: 1,
@@ -56,7 +78,9 @@ const defaultProgress = (): ProgressState => ({
   dailyAttemptsUsed: 0,
   speedrunAttemptsUsed: 0,
   signInDate: "",
+  signInHistory: {},
   lotteryDate: "",
+  speedrunRevealUsed: 0,
   modeLevels: defaultModeLevels(),
   bestModeLevels: defaultModeLevels(),
   selectedMode: "simple",
@@ -70,6 +94,7 @@ interface SavedSession {
   guesses: GuessRecord[];
   startedAt: number;
   dailyLeftSeconds: number;
+  speedrunRevealUsed: number;
   battle: BattleState | null;
 }
 
@@ -83,6 +108,7 @@ interface GameStoreState {
   guesses: GuessRecord[];
   startedAt: number;
   dailyLeftSeconds: number;
+  speedrunRevealUsed: number;
   battle: BattleState | null;
 }
 
@@ -97,6 +123,7 @@ export const useGameStore = defineStore("game", {
     guesses: [],
     startedAt: 0,
     dailyLeftSeconds: 100,
+    speedrunRevealUsed: 0,
     battle: null,
   }),
 
@@ -127,6 +154,7 @@ export const useGameStore = defineStore("game", {
         this.guesses = session.guesses ?? [];
         this.startedAt = session.startedAt ?? Date.now();
         this.dailyLeftSeconds = session.dailyLeftSeconds ?? 100;
+        this.speedrunRevealUsed = session.speedrunRevealUsed ?? this.progress.speedrunRevealUsed ?? 0;
       }
 
       this.recoverStamina();
@@ -230,6 +258,8 @@ export const useGameStore = defineStore("game", {
       this.locked = Array(difficulty.digitLength).fill(false);
       this.guesses = [];
       this.startedAt = Date.now();
+      this.speedrunRevealUsed = 0;
+      this.progress.speedrunRevealUsed = 0;
       this.persistAll();
       return { ok: true, message: "关卡已开始。" };
     },
@@ -303,12 +333,19 @@ export const useGameStore = defineStore("game", {
 
     useRevealTool(): { ok: boolean; message: string } {
       if (!this.puzzle) return { ok: false, message: "请先开始关卡。" };
+      if (this.progress.selectedMode === "speedrun" && this.speedrunRevealUsed >= SPEEDRUN_REVEAL_LIMIT) {
+        return { ok: false, message: "极速竞赛每局只能使用 1 个显真镜。" };
+      }
       if (this.wallet.revealTools <= 0) {
         return { ok: false, message: "没有可用的显真透视镜。" };
       }
       const result = this.revealOneDigit();
       if (!result.ok) return result;
       this.wallet.revealTools -= 1;
+      if (this.progress.selectedMode === "speedrun") {
+        this.speedrunRevealUsed += 1;
+        this.progress.speedrunRevealUsed = this.speedrunRevealUsed;
+      }
       this.persistAll();
       return { ok: true, message: "已使用显真透视镜。" };
     },
@@ -330,8 +367,17 @@ export const useGameStore = defineStore("game", {
     },
 
     revealFromAd(): { ok: boolean; message: string } {
+      if (this.progress.selectedMode === "speedrun" && this.speedrunRevealUsed >= SPEEDRUN_REVEAL_LIMIT) {
+        return { ok: false, message: "极速竞赛每局只能使用 1 个显真镜。" };
+      }
       const result = this.revealOneDigit();
-      if (result.ok) this.persistAll();
+      if (result.ok) {
+        if (this.progress.selectedMode === "speedrun") {
+          this.speedrunRevealUsed += 1;
+          this.progress.speedrunRevealUsed = this.speedrunRevealUsed;
+        }
+        this.persistAll();
+      }
       return result;
     },
 
@@ -357,33 +403,30 @@ export const useGameStore = defineStore("game", {
       if (this.progress.signInDate === today) {
         return { ok: false, message: "今日已签到。" };
       }
+      const reward = signInRewardForDate(today);
       this.progress.signInDate = today;
-      this.wallet.gold += 30;
-      this.wallet.stamina = Math.min(MAX_STAMINA, this.wallet.stamina + 20);
+      this.progress.signInHistory[today] = reward.label;
+      this.wallet.gold += reward.gold;
+      this.wallet.stamina = Math.min(MAX_STAMINA, this.wallet.stamina + reward.stamina);
+      this.wallet.revealTools += reward.revealTools;
       this.persistAll();
-      return { ok: true, message: "签到成功，金币 +30，体力 +20。" };
+      return { ok: true, message: `签到成功，获得 ${reward.label}。` };
     },
 
-    drawDailyLottery(): { ok: boolean; message: string } {
+    drawDailyLottery(rewardIndex?: LotteryRewardIndex): { ok: boolean; message: string; rewardIndex?: LotteryRewardIndex } {
       const today = todayKey();
       if (this.progress.lotteryDate === today) {
         return { ok: false, message: "今日抽奖次数已用完。" };
       }
 
-      const rewards = [
-        { gold: 20, stamina: 0, revealTools: 0, label: "金币 +20" },
-        { gold: 50, stamina: 0, revealTools: 0, label: "金币 +50" },
-        { gold: 0, stamina: 15, revealTools: 0, label: "体力 +15" },
-        { gold: 30, stamina: 10, revealTools: 0, label: "金币 +30，体力 +10" },
-        { gold: 0, stamina: 0, revealTools: 1, label: "显真透视镜 +1" },
-      ];
-      const reward = rewards[Math.floor(Math.random() * rewards.length)];
+      const index = typeof rewardIndex === "number" ? rewardIndex : (Math.floor(Math.random() * LOTTERY_REWARDS.length) as LotteryRewardIndex);
+      const reward = LOTTERY_REWARDS[index];
       this.progress.lotteryDate = today;
       this.wallet.gold += reward.gold;
       this.wallet.stamina = Math.min(MAX_STAMINA, this.wallet.stamina + reward.stamina);
       this.wallet.revealTools += reward.revealTools;
       this.persistAll();
-      return { ok: true, message: `抽奖获得：${reward.label}。` };
+      return { ok: true, message: `抽奖获得：${reward.label}。`, rewardIndex: index };
     },
 
     recoverStamina() {
@@ -440,6 +483,7 @@ export const useGameStore = defineStore("game", {
         guesses: this.guesses,
         startedAt: this.startedAt,
         dailyLeftSeconds: this.dailyLeftSeconds,
+        speedrunRevealUsed: this.speedrunRevealUsed,
         battle: this.battle,
       });
     },
@@ -606,7 +650,9 @@ function normalizeProgress(progress: ProgressState): ProgressState {
     selectedMode,
     selectedDifficulty,
     signInDate: progress.signInDate ?? "",
+    signInHistory: progress.signInHistory ?? {},
     lotteryDate: progress.lotteryDate ?? "",
+    speedrunRevealUsed: progress.speedrunRevealUsed ?? 0,
     modeLevels: {
       ...fallback.modeLevels,
       ...(saved.modeLevels ?? {}),
@@ -640,6 +686,11 @@ function todayKey(): string {
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
   return `${now.getFullYear()}-${month}-${day}`;
+}
+
+function signInRewardForDate(dateKey: string) {
+  const day = Number(dateKey.slice(-2));
+  return SIGN_IN_REWARDS[(day - 1) % SIGN_IN_REWARDS.length];
 }
 
 function normalizeMode(mode: string | undefined): GameMode {

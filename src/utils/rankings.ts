@@ -8,6 +8,8 @@ export interface RankingEntry {
   nickname: string;
   score: number;
   level: number;
+  bestTimeMs?: number;
+  metricText: string;
   isMe: boolean;
 }
 
@@ -44,28 +46,17 @@ export function createLeaderboard(
   mode: RankingMode = "simple",
 ): RankingEntry[] {
   const names = scope === "global" ? globalNames : friendNames;
-  const base = mode === "hard" ? 65 : mode === "speedrun" ? 45 : 80;
-  const step = mode === "hard" ? 1.4 : mode === "speedrun" ? 0.8 : 1;
-  const entries: Omit<RankingEntry, "rank">[] = Array.from({ length: 50 }, (_, index) => {
-    const level = Math.max(1, Math.floor(base - index * step + ((index * 7) % 9)));
-    return {
-      nickname: `${names[index % names.length]}${index + 1}`,
-      score: level * scoreWeight(mode) + (50 - index) * 7,
-      level,
-      isMe: false,
-    };
-  });
+  const entries: Omit<RankingEntry, "rank">[] = Array.from({ length: 50 }, (_, index) => createMockEntry(names[index % names.length], index, mode));
 
-  const myLevel = playerLevel(progress, mode);
-  entries.push({
-    nickname: profile?.nickname || "数字玩家",
-    score: playerScore(progress, mode),
-    level: myLevel,
-    isMe: true,
-  });
+  entries.push(createPlayerEntry(profile, progress, mode));
 
   return entries
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => {
+      if (mode === "speedrun") {
+        return (a.bestTimeMs ?? Number.MAX_SAFE_INTEGER) - (b.bestTimeMs ?? Number.MAX_SAFE_INTEGER);
+      }
+      return b.level - a.level;
+    })
     .slice(0, 50)
     .map((entry, index) => ({
       ...entry,
@@ -73,16 +64,58 @@ export function createLeaderboard(
     }));
 }
 
+function createMockEntry(nickname: string, index: number, mode: RankingMode): Omit<RankingEntry, "rank"> {
+  if (mode === "speedrun") {
+    const bestTimeMs = 18000 + index * 1850 + ((index * 7) % 11) * 230;
+    return {
+      nickname,
+      score: bestTimeMs,
+      level: Math.max(1, 50 - index),
+      bestTimeMs,
+      metricText: formatTime(bestTimeMs),
+      isMe: false,
+    };
+  }
+
+  const base = mode === "hard" ? 72 : 96;
+  const level = Math.max(1, base - Math.floor(index * (mode === "hard" ? 1.25 : 1.05)));
+  return {
+    nickname,
+    score: level,
+    level,
+    metricText: `第 ${level} 关`,
+    isMe: false,
+  };
+}
+
+function createPlayerEntry(profile: PlayerProfile | null, progress: ProgressState, mode: RankingMode): Omit<RankingEntry, "rank"> {
+  if (mode === "speedrun") {
+    const bestTimeMs = progress.bestSpeedMs || Number.MAX_SAFE_INTEGER;
+    return {
+      nickname: profile?.nickname || "数字玩家",
+      score: bestTimeMs,
+      level: playerLevel(progress, mode),
+      bestTimeMs,
+      metricText: progress.bestSpeedMs ? formatTime(progress.bestSpeedMs) : "暂无成绩",
+      isMe: true,
+    };
+  }
+
+  const level = playerLevel(progress, mode);
+  return {
+    nickname: profile?.nickname || "数字玩家",
+    score: level,
+    level,
+    metricText: `第 ${level} 关`,
+    isMe: true,
+  };
+}
+
 function playerLevel(progress: ProgressState, mode: RankingMode): number {
   return Math.max(1, progress.modeLevels[mode] - 1);
 }
 
-function playerScore(progress: ProgressState, mode: RankingMode): number {
-  return playerLevel(progress, mode) * scoreWeight(mode);
-}
-
-function scoreWeight(mode: RankingMode): number {
-  if (mode === "hard") return 180;
-  if (mode === "speedrun") return 150;
-  return 120;
+function formatTime(milliseconds: number): string {
+  if (!Number.isFinite(milliseconds) || milliseconds === Number.MAX_SAFE_INTEGER) return "暂无成绩";
+  return `${(milliseconds / 1000).toFixed(2)} 秒`;
 }

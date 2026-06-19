@@ -1,116 +1,147 @@
 <template>
-  <view class="page">
-    <view class="sky-dot dot-a"></view>
-    <view class="sky-dot dot-b"></view>
-
-    <view v-if="loadError" class="error-panel">
-      <text class="mode-title">主页加载失败</text>
-      <text class="mode-desc">{{ loadError }}</text>
-      <button class="small-button" @tap="goLogin()">回到登录页</button>
+  <view class="home-page">
+    <view v-if="loadError" class="state-panel game-card">
+      <text class="state-title">主页加载失败</text>
+      <text class="state-desc">{{ loadError }}</text>
+      <button class="game-btn game-btn--success" @tap="goLogin()">回到登录页</button>
     </view>
 
-    <view v-else-if="!ready" class="error-panel">
-      <text class="mode-title">加载中</text>
-      <text class="mode-desc">正在读取本地账号和游戏进度</text>
+    <view v-else-if="!ready" class="state-panel game-card">
+      <text class="state-title">加载中</text>
+      <text class="state-desc">正在读取账号、体力和闯关进度</text>
     </view>
 
     <block v-else>
-      <view class="topbar">
-        <view class="profile">
-          <text class="profile-name">{{ displayName }}</text>
-          <text class="profile-sub">欢迎回来</text>
+      <view class="player-panel">
+        <view class="avatar">
+          <text>🦁</text>
         </view>
-        <button class="settings-button" @tap="showSettings = true">⚙</button>
+        <view class="player-copy">
+          <text class="player-name">{{ displayName }}</text>
+          <text class="player-sub">逻辑大师 · 今日继续推理</text>
+        </view>
       </view>
 
-      <view class="resource-bar">
-        <view class="resource-item stamina">
-          <view class="resource-icon bolt"></view>
-          <text class="resource-value">{{ staminaText }}</text>
-        </view>
-        <view class="resource-item coin">
-          <view class="resource-icon coin-dot"></view>
-          <text class="resource-value">{{ goldText }}</text>
-        </view>
-        <button class="resource-item reveal" @tap="showRevealPanel = true">
-          <view class="magnifier">
-            <view class="lens"></view>
-            <view class="handle"></view>
-          </view>
-          <text class="resource-value">透视镜</text>
-          <text v-if="game.wallet.revealTools > 0" class="badge">{{ game.wallet.revealTools }}</text>
-        </button>
-      </view>
-
-      <view class="hero">
-        <view class="hero-copy">
-          <text class="hero-kicker">数字推理挑战</text>
-          <text class="hero-title">敢不敢来比一局</text>
-          <text class="hero-sub">{{ staminaRecoverText }}</text>
-        </view>
-        <view class="pony-wrap">
-          <view class="pony">
-            <view class="pony-ear left"></view>
-            <view class="pony-ear right"></view>
-            <view class="pony-head">
-              <view class="mane"></view>
-              <view class="eye left"></view>
-              <view class="eye right"></view>
-              <view class="brow left"></view>
-              <view class="brow right"></view>
-              <view class="nose"></view>
-              <view class="mouth"></view>
+      <view class="resource-card game-card">
+        <view class="resource-item">
+          <view class="resource-main">
+            <text class="resource-icon">⚡</text>
+            <view>
+              <text class="resource-label">体力</text>
+              <text class="resource-value">{{ game.wallet.stamina }}/100</text>
             </view>
-            <view class="pony-body"></view>
           </view>
+          <button class="resource-plus" @tap="watchStaminaAd()">+</button>
+          <text class="resource-tip">{{ staminaRecoverText }}</text>
+        </view>
+
+        <view class="resource-item">
+          <view class="resource-main">
+            <text class="resource-icon coin">●</text>
+            <view>
+              <text class="resource-label">金币</text>
+              <text class="resource-value">{{ game.wallet.gold }}</text>
+            </view>
+          </view>
+          <button class="resource-plus" @tap="watchGoldAd()">+</button>
+          <text class="resource-tip">用于购买显真镜</text>
+        </view>
+
+        <view class="resource-item">
+          <view class="resource-main">
+            <text class="resource-icon">🔍</text>
+            <view>
+              <text class="resource-label">显真镜</text>
+              <text class="resource-value">{{ game.wallet.revealTools }}</text>
+            </view>
+          </view>
+          <button class="resource-plus" @tap="showRevealPanel = true">+</button>
+          <text class="resource-tip">随机显示一位答案</text>
         </view>
       </view>
 
-      <view class="quick-actions">
-        <button class="quick-button" @tap="openRankMenu()">排行榜</button>
-        <button class="quick-button" @tap="showLottery = true">每日抽奖</button>
-        <button class="quick-button" @tap="claimSignIn()">签到</button>
-        <button class="quick-button" @tap="openBattle()">好友对战</button>
-      </view>
-
-      <view v-if="showRankMenu" class="rank-menu">
-        <button v-for="item in rankModes" :key="item.key" class="rank-chip" @tap="openRankSheet(item.key)">
-          {{ item.label }}
-        </button>
+      <view class="section-head">
+        <text class="section-title">选择模式</text>
+        <text class="section-desc">每个模式会保存独立进度</text>
       </view>
 
       <view class="mode-grid">
-        <button class="level-card simple-card" @tap="startGame('simple', 'easy')">
-          <text class="level-label">简单模式</text>
-          <text class="level-number">简单第 {{ simpleLevel }} 关</text>
+        <button class="mode-card mode-simple" @tap="startGame('simple', 'easy')">
+          <view class="mode-icon">🐱</view>
+          <text class="mode-title">简单模式</text>
+          <text class="mode-desc">4数字 · 4线索</text>
+          <view class="mode-meta">
+            <text>⚡ -5</text>
+            <text>🪙 +10</text>
+          </view>
+          <text class="mode-level">第 {{ simpleLevel }} 关</text>
         </button>
-        <button class="level-card hard-card" @tap="startGame('hard', 'hard')">
-          <text class="level-label">困难模式</text>
-          <text class="level-number">困难第 {{ hardLevel }} 关</text>
+
+        <button class="mode-card mode-hard" @tap="startGame('hard', 'hard')">
+          <view class="mode-icon">🦁</view>
+          <text class="mode-title">困难模式</text>
+          <text class="mode-desc">5数字 · 5线索</text>
+          <view class="mode-meta">
+            <text>⚡ -8</text>
+            <text>🪙 +18</text>
+          </view>
+          <text class="mode-level">第 {{ hardLevel }} 关</text>
         </button>
-      </view>
 
-      <button class="wide-mode daily-card" @tap="startGame('daily', 'easy')">
-        <view>
-          <text class="wide-title">开始每日挑战</text>
-          <text class="wide-sub">今日剩余 {{ game.dailyAttemptsLeft }}/2 次，午夜刷新</text>
-        </view>
-        <text class="wide-arrow">开始</text>
-      </button>
+        <button class="mode-card mode-daily" @tap="startGame('daily', 'easy')">
+          <view class="mode-icon">🔎</view>
+          <text class="mode-title">每日挑战</text>
+          <text class="mode-desc">每天2次 · 剩余 {{ game.dailyAttemptsLeft }}/2</text>
+          <view class="mode-meta">
+            <text>奖励体力</text>
+            <text>限时推理</text>
+          </view>
+        </button>
 
-      <button class="wide-mode speed-card" @tap="startGame('speedrun', 'easy')">
-        <view>
-          <text class="wide-title">极速竞赛</text>
-          <text class="wide-sub">当前第 {{ game.progress.modeLevels.speedrun }} 关，最佳 {{ speedText }}</text>
-        </view>
-        <text class="wide-arrow">冲刺</text>
-      </button>
+        <button class="mode-card mode-speed" @tap="startGame('speedrun', 'easy')">
+          <view class="mode-icon">⏱</view>
+          <text class="mode-title">极速竞赛</text>
+          <text class="mode-desc">历史最佳 {{ speedText }}</text>
+          <view class="mode-meta">
+            <text>今日 {{ game.speedrunAttemptsLeft }}/2</text>
+            <text>速度榜</text>
+          </view>
+        </button>
 
-      <view class="ad-row">
-        <button class="small-button" @tap="watchStaminaAd()">看广告补体力</button>
-        <button class="small-button" @tap="watchGoldAd()">看广告拿金币</button>
+        <button class="mode-card mode-battle" @tap="openBattleMode('checkpoint')">
+          <view class="mode-icon">🔗</view>
+          <text class="mode-title">好友闯关</text>
+          <text class="mode-desc">3关连胜</text>
+          <view class="mode-meta">
+            <text>同题对战</text>
+            <text>分享邀请</text>
+          </view>
+        </button>
+
+        <button class="mode-card mode-race" @tap="openBattleMode('speed')">
+          <view class="mode-icon">🏃</view>
+          <text class="mode-title">好友竞速</text>
+          <text class="mode-desc">速度比拼</text>
+          <view class="mode-meta">
+            <text>一局定胜</text>
+            <text>同题同线索</text>
+          </view>
+        </button>
       </view>
     </block>
+
+    <view class="bottom-nav">
+      <button class="nav-btn" @tap="openRankMenu()">📊<text>排行榜</text></button>
+      <button class="nav-btn" @tap="showSignIn = true">📅<text>签到</text></button>
+      <button class="nav-btn" @tap="showLottery = true">🎁<text>抽奖</text></button>
+      <button class="nav-btn" @tap="showSettings = true">⚙<text>设置</text></button>
+    </view>
+
+    <view v-if="showRankMenu" class="rank-popover game-card">
+      <button v-for="item in rankModes" :key="item.key" class="rank-chip" @tap="openRankSheet(item.key)">
+        {{ item.label }}
+      </button>
+    </view>
 
     <view v-if="showRankSheet" class="mask" @tap="closeRankSheet()"></view>
     <view v-if="showRankSheet" class="bottom-sheet">
@@ -118,7 +149,7 @@
       <view class="sheet-head">
         <view>
           <text class="sheet-title">{{ rankTitle }}</text>
-          <text class="sheet-sub">上线后由服务器返回真实榜单</text>
+          <text class="sheet-sub">总榜和微信好友榜前 50 名</text>
         </view>
         <button class="close-button" @tap="closeRankSheet()">×</button>
       </view>
@@ -131,62 +162,90 @@
           <text class="rank-no">{{ entry.rank }}</text>
           <view class="rank-main">
             <text class="rank-name">{{ entry.nickname }}</text>
-            <text class="rank-sub">第 {{ entry.level }} 关</text>
+            <text class="rank-sub">{{ entry.metricText || `第 ${entry.level} 关` }}</text>
           </view>
-          <text class="rank-score">{{ entry.score }}</text>
+          <text class="rank-score">{{ rankMode === "speedrun" ? "用时" : "关卡" }}</text>
         </view>
       </scroll-view>
     </view>
 
-    <view v-if="showLottery" class="mask" @tap="showLottery = false"></view>
-    <view v-if="showLottery" class="center-modal">
-      <button class="modal-close" @tap="showLottery = false">×</button>
-      <text class="modal-title">每日免费抽奖</text>
-      <view class="wheel-wrap">
-        <view class="pointer"></view>
-        <view class="wheel" :style="{ transform: `rotate(${wheelDeg}deg)` }">
-          <text class="wheel-prize p1">金币</text>
-          <text class="wheel-prize p2">体力</text>
-          <text class="wheel-prize p3">透视镜</text>
-          <text class="wheel-prize p4">大奖</text>
+    <view v-if="showSignIn" class="mask" @tap="showSignIn = false"></view>
+    <view v-if="showSignIn" class="center-modal sign-modal">
+      <button class="modal-close" @tap="showSignIn = false">×</button>
+      <text class="modal-title">每日签到</text>
+      <text class="modal-note">每个日期都有固定奖励，签到后会记录当天获得的东西。</text>
+      <scroll-view class="sign-calendar" scroll-y>
+        <view
+          v-for="day in signInDays"
+          :key="day.dateKey"
+          class="sign-day"
+          :class="{ today: day.today, signed: day.signed }"
+        >
+          <text class="sign-date">{{ day.day }}</text>
+          <text class="sign-reward">{{ day.signed ? game.progress.signInHistory[day.dateKey] : day.reward }}</text>
         </view>
+      </scroll-view>
+      <button class="game-btn game-btn--success modal-action" @tap="claimSignIn()">今日签到</button>
+    </view>
+
+    <view v-if="showLottery" class="mask" @tap="showLottery = false"></view>
+    <view v-if="showLottery" class="center-modal lottery-modal">
+      <button class="modal-close lottery-close" @tap="showLottery = false">×</button>
+      <view class="lottery-title-row">
+        <text class="lottery-title-deco">\\</text>
+        <text class="lottery-title">每日抽奖</text>
+        <text class="lottery-title-deco">/</text>
       </view>
-      <text class="modal-note">{{ lotteryMessage || "每天一次，可能获得金币、体力或显真透视镜。" }}</text>
-      <button class="primary-action" :loading="lotteryBusy" @tap="spinLottery()">免费抽奖</button>
+      <view class="wheel-wrap">
+        <view class="wheel-pointer"></view>
+        <view class="wheel" :style="{ transform: `rotate(${wheelDeg}deg)` }">
+          <view
+            v-for="(reward, index) in lotteryRewards"
+            :key="reward.key"
+            class="wheel-sector"
+            :class="index % 2 === 0 ? 'blue' : 'green'"
+          >
+            <text class="reward-value">{{ reward.label }}</text>
+            <text class="reward-icon">{{ lotteryIcon(reward.key) }}</text>
+          </view>
+        </view>
+        <button class="wheel-center" :disabled="lotteryBusy" @tap="spinLottery()">
+          {{ lotteryBusy ? "转动" : "抽奖" }}
+        </button>
+      </view>
+      <button class="lottery-main-btn" :disabled="lotteryBusy" @tap="spinLottery()">
+        {{ lotteryBusy ? "抽奖中..." : "点击抽奖" }}
+      </button>
+      <text class="lottery-note">{{ lotteryMessage || "每日免费 1 次" }}</text>
     </view>
 
     <view v-if="showRevealPanel" class="mask" @tap="showRevealPanel = false"></view>
-    <view v-if="showRevealPanel" class="center-modal compact">
+    <view v-if="showRevealPanel" class="center-modal">
       <button class="modal-close" @tap="showRevealPanel = false">×</button>
-      <view class="big-magnifier">
-        <view class="big-lens"></view>
-        <view class="big-handle"></view>
-      </view>
       <text class="modal-title">显真透视镜</text>
       <text class="modal-note">当前拥有 {{ game.wallet.revealTools }} 个。进入关卡后可随机显示一个正确数字。</text>
-      <button class="primary-action" @tap="buyRevealTool()">金币购买 {{ revealCost }}</button>
-      <button class="ghost-action" @tap="goUseReveal()">去关卡使用</button>
+      <button class="game-btn game-btn--warning modal-action" @tap="buyRevealTool()">金币购买 {{ revealCost }}</button>
+      <button class="game-btn game-btn--ghost modal-action" @tap="goUseReveal()">去关卡使用</button>
     </view>
 
     <view v-if="showSettings" class="mask" @tap="showSettings = false"></view>
-    <view v-if="showSettings" class="center-modal compact">
+    <view v-if="showSettings" class="center-modal settings-modal">
       <button class="modal-close" @tap="showSettings = false">×</button>
       <text class="modal-title">设置</text>
       <view class="setting-row">
         <text>音效</text>
-        <switch :checked="settings.sound" color="#29a8ff" @change="settings.sound = !settings.sound" />
+        <switch :checked="settings.sound" color="#2ECC71" @change="settings.sound = !settings.sound" />
       </view>
       <view class="setting-row">
         <text>背景音乐</text>
-        <switch :checked="settings.music" color="#29a8ff" @change="settings.music = !settings.music" />
+        <switch :checked="settings.music" color="#2ECC71" @change="settings.music = !settings.music" />
       </view>
       <view class="setting-row">
         <text>消息提醒</text>
-        <switch :checked="settings.notice" color="#29a8ff" @change="settings.notice = !settings.notice" />
+        <switch :checked="settings.notice" color="#2ECC71" @change="settings.notice = !settings.notice" />
       </view>
-      <button class="ghost-action" @tap="showToast('客服入口上线时接入')">联系客服</button>
-      <button class="ghost-action" @tap="showToast('隐私协议上线前补充')">隐私协议</button>
-      <button class="danger-action" @tap="logout()">退出登录</button>
+      <button class="game-btn game-btn--ghost modal-action" @tap="showToast('客服入口上线时接入')">联系客服</button>
+      <button class="game-btn game-btn--danger modal-action" @tap="logout()">退出登录</button>
     </view>
   </view>
 </template>
@@ -194,8 +253,17 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import { onShow } from "@dcloudio/uni-app";
-import { useGameStore, MAX_STAMINA, REVEAL_TOOL_COST, STAMINA_RECOVER_AMOUNT, STAMINA_RECOVER_MS } from "@/stores/useGameStore";
-import type { DifficultyKey, GameMode } from "@/types/game";
+import {
+  useGameStore,
+  LOTTERY_REWARDS,
+  MAX_STAMINA,
+  REVEAL_TOOL_COST,
+  SIGN_IN_REWARDS,
+  STAMINA_RECOVER_AMOUNT,
+  STAMINA_RECOVER_MS,
+  type LotteryRewardIndex,
+} from "@/stores/useGameStore";
+import type { BattleType, DifficultyKey, GameMode } from "@/types/game";
 import { adManager } from "@/utils/adManager";
 import { fetchLeaderboard } from "@/services/api";
 import { createLeaderboard, type RankingEntry, type RankingMode, type RankingScope } from "@/utils/rankings";
@@ -213,6 +281,8 @@ const showLottery = ref(false);
 const lotteryBusy = ref(false);
 const lotteryMessage = ref("");
 const wheelDeg = ref(0);
+const selectedLotteryIndex = ref<LotteryRewardIndex | null>(null);
+const showSignIn = ref(false);
 const showRevealPanel = ref(false);
 const showSettings = ref(false);
 const settings = reactive({
@@ -228,27 +298,42 @@ const rankModes: Array<{ key: RankingMode; label: string }> = [
   { key: "speedrun", label: "极速竞赛" },
 ];
 
-const displayName = computed(() => game.profile ? game.profile.nickname : "数字玩家");
+const displayName = computed(() => (game.profile ? game.profile.nickname : "数字玩家"));
 const simpleLevel = computed(() => String(game.progress.modeLevels.simple));
 const hardLevel = computed(() => String(game.progress.modeLevels.hard));
-const speedText = computed(() => {
-  if (!game.progress.bestSpeedMs) return "暂无";
-  return `${(game.progress.bestSpeedMs / 1000).toFixed(2)}秒`;
-});
-const staminaText = computed(() => game.wallet.stamina > MAX_STAMINA ? String(game.wallet.stamina) : `${game.wallet.stamina}/${MAX_STAMINA}`);
-const goldText = computed(() => String(game.wallet.gold));
+const speedText = computed(() => (game.progress.bestSpeedMs ? `${(game.progress.bestSpeedMs / 1000).toFixed(2)} 秒` : "暂无"));
 const revealCost = computed(() => String(REVEAL_TOOL_COST));
 const rankTitle = computed(() => rankModes.find((item) => item.key === rankMode.value)?.label || "排行榜");
-const currentRankList = computed(() => rankList.value.length ? rankList.value : createLeaderboard(game.profile, game.progress, rankScope.value, rankMode.value));
+const currentRankList = computed(() => (rankList.value.length ? rankList.value : createLeaderboard(game.profile, game.progress, rankScope.value, rankMode.value)));
+const lotteryRewards = LOTTERY_REWARDS;
+const signInDays = computed(() => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const today = now.getDate();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  return Array.from({ length: daysInMonth }, (_, index) => {
+    const day = index + 1;
+    const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const reward = SIGN_IN_REWARDS[index % SIGN_IN_REWARDS.length];
+    return {
+      day,
+      dateKey,
+      reward: reward.label,
+      signed: Boolean(game.progress.signInHistory?.[dateKey]),
+      today: day === today,
+    };
+  });
+});
 const staminaRecoverText = computed(() => {
   const minutes = STAMINA_RECOVER_MS / 60000;
   if (game.wallet.stamina >= MAX_STAMINA) {
-    return `体力已满，每 ${minutes} 分钟恢复 ${STAMINA_RECOVER_AMOUNT} 点`;
+    return `已满，每 ${minutes} 分钟恢复 ${STAMINA_RECOVER_AMOUNT} 点`;
   }
 
   const nextAt = game.wallet.lastStaminaAt + STAMINA_RECOVER_MS;
   const seconds = Math.max(0, Math.ceil((nextAt - nowTick.value) / 1000));
-  return `每 ${minutes} 分钟恢复 ${STAMINA_RECOVER_AMOUNT} 点，${formatDuration(seconds)} 后恢复`;
+  return `${formatDuration(seconds)} 后恢复`;
 });
 
 onMounted(() => {
@@ -292,6 +377,10 @@ function startGame(mode: GameMode, difficulty: DifficultyKey) {
   uni.navigateTo({ url: "/pages/play/play" });
 }
 
+function openBattleMode(type: BattleType) {
+  uni.navigateTo({ url: `/pages/battle/battle?type=${type}` });
+}
+
 function openRankMenu() {
   showRankMenu.value = !showRankMenu.value;
 }
@@ -323,10 +412,6 @@ async function loadRankList() {
   rankList.value = remoteList;
 }
 
-function openBattle() {
-  uni.navigateTo({ url: "/pages/battle/battle" });
-}
-
 function formatDuration(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = String(totalSeconds % 60).padStart(2, "0");
@@ -335,26 +420,50 @@ function formatDuration(totalSeconds: number) {
 
 function claimSignIn() {
   const result = game.claimDailySignIn();
+  if (result.ok) {
+    showSignIn.value = false;
+  }
   uni.showToast({ title: result.message, icon: "none" });
+}
+
+function lotteryIcon(key: string) {
+  if (key.includes("gold")) return "🪙";
+  if (key.includes("stamina")) return "⚡";
+  return "🔍";
 }
 
 function spinLottery() {
   if (lotteryBusy.value) return;
-  const result = game.drawDailyLottery();
-  if (!result.ok) {
-    uni.showToast({ title: result.message, icon: "none" });
-    lotteryMessage.value = result.message;
+  if (game.progress.lotteryDate === todayKey()) {
+    const message = "今日抽奖次数已用完。";
+    lotteryMessage.value = message;
+    uni.showToast({ title: message, icon: "none" });
     return;
   }
-
+  const rewardIndex = Math.floor(Math.random() * LOTTERY_REWARDS.length) as LotteryRewardIndex;
+  selectedLotteryIndex.value = rewardIndex;
   lotteryBusy.value = true;
   lotteryMessage.value = "转盘转动中...";
-  wheelDeg.value += 1260 + Math.floor(Math.random() * 360);
+  const segmentDeg = 360 / LOTTERY_REWARDS.length;
+  const finalDeg = 360 * 5 - rewardIndex * segmentDeg;
+  wheelDeg.value += finalDeg;
   setTimeout(() => {
-    lotteryBusy.value = false;
-    lotteryMessage.value = result.message;
-    uni.showToast({ title: result.message, icon: "none" });
-  }, 900);
+    try {
+      const result = game.drawDailyLottery(rewardIndex);
+      lotteryMessage.value = result.message;
+      uni.showToast({ title: result.message, icon: "none" });
+    } catch (error) {
+      lotteryMessage.value = "抽奖失败，请再试一次。";
+      uni.showToast({ title: "抽奖失败，请再试一次", icon: "none" });
+    } finally {
+      lotteryBusy.value = false;
+    }
+  }, 1000);
+}
+
+function todayKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
 function buyRevealTool() {
@@ -402,548 +511,421 @@ async function watchGoldAd() {
 </script>
 
 <style scoped>
-.page {
+.home-page {
   position: relative;
   min-height: 100vh;
+  padding: 56rpx 24rpx 150rpx;
   overflow: hidden;
-  padding: 58rpx 26rpx 36rpx;
-  background: linear-gradient(180deg, #74c9ff 0%, #bfeefe 48%, #f7fbf2 100%);
-  color: #1a2430;
+  background: linear-gradient(160deg, #2c3e50 0%, #4a90e2 54%, #a8e6cf 100%);
+  color: #333333;
 }
 
-.sky-dot {
+.state-panel {
+  margin-top: 220rpx;
+}
+
+.state-title,
+.state-desc {
+  display: block;
+}
+
+.state-title {
+  color: #333333;
+  font-size: 34rpx;
+  font-weight: 900;
+}
+
+.state-desc {
+  margin: 16rpx 0 24rpx;
+  color: #8a98a8;
+  font-size: 26rpx;
+}
+
+.player-panel {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 20rpx;
+  border-radius: 28rpx;
+  background: rgba(74, 144, 226, 0.92);
+  box-shadow: 0 6rpx 0 rgba(35, 82, 138, 0.35);
+}
+
+.avatar {
+  width: 108rpx;
+  height: 108rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 6rpx solid rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  background: #fff6cf;
+  font-size: 64rpx;
+}
+
+.player-copy {
+  flex: 1;
+}
+
+.player-name,
+.player-sub,
+.section-title,
+.section-desc,
+.resource-label,
+.resource-value,
+.resource-tip,
+.mode-title,
+.mode-desc,
+.mode-level,
+.sheet-title,
+.sheet-sub,
+.rank-name,
+.rank-sub,
+.modal-title,
+.modal-note {
+  display: block;
+}
+
+.player-name {
+  color: #ffffff;
+  font-size: 36rpx;
+  font-weight: 900;
+}
+
+.player-sub {
+  margin-top: 8rpx;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 24rpx;
+}
+
+.resource-card {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14rpx;
+  margin-top: 22rpx;
+}
+
+.resource-item {
+  position: relative;
+  min-height: 128rpx;
+  padding: 12rpx;
+  border-radius: 22rpx;
+  background: #f7fbff;
+}
+
+.resource-main {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.resource-icon {
+  width: 42rpx;
+  height: 42rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(241, 196, 15, 0.25);
+  font-size: 28rpx;
+}
+
+.resource-icon.coin {
+  color: #f1c40f;
+  text-shadow: 0 2rpx 0 rgba(0, 0, 0, 0.2);
+}
+
+.resource-label {
+  color: #8a98a8;
+  font-size: 20rpx;
+}
+
+.resource-value {
+  margin-top: 2rpx;
+  color: #2c3e50;
+  font-size: 27rpx;
+  font-weight: 900;
+}
+
+.resource-plus {
   position: absolute;
+  top: 10rpx;
+  right: 10rpx;
+  width: 34rpx;
+  height: 34rpx;
+  border-radius: 50%;
+  background: #2ecc71;
+  color: #fff;
+  font-size: 26rpx;
+  font-weight: 900;
+  line-height: 34rpx;
+  box-shadow: 0 3rpx 0 rgba(26, 139, 76, 0.65);
+}
+
+.resource-tip {
+  margin-top: 12rpx;
+  color: #8a98a8;
+  font-size: 18rpx;
+  line-height: 1.25;
+}
+
+.section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: 28rpx;
+}
+
+.section-title {
+  color: #ffffff;
+  font-size: 34rpx;
+  font-weight: 900;
+}
+
+.section-desc {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 22rpx;
+}
+
+.mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18rpx;
+  margin-top: 18rpx;
+}
+
+.mode-card {
+  position: relative;
+  min-height: 236rpx;
+  padding: 22rpx;
+  border: 0;
+  border-radius: 24rpx;
+  color: #ffffff;
+  text-align: left;
+  box-shadow: 0 6rpx 0 rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.mode-card::after {
+  content: "";
+  position: absolute;
+  right: -24rpx;
+  bottom: -34rpx;
+  width: 130rpx;
+  height: 130rpx;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.mode-icon {
+  position: absolute;
+  right: 18rpx;
+  top: 18rpx;
+  font-size: 58rpx;
+}
+
+.mode-title {
+  max-width: 210rpx;
+  color: #fff;
+  font-size: 31rpx;
+  font-weight: 900;
+}
+
+.mode-desc {
+  margin-top: 10rpx;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 23rpx;
+}
+
+.mode-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-top: 18rpx;
+}
+
+.mode-meta text {
+  padding: 7rpx 12rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.55);
-  animation: floatCloud 7s ease-in-out infinite;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-size: 21rpx;
+  font-weight: 800;
 }
 
-.dot-a {
-  top: 130rpx;
-  left: 36rpx;
-  width: 160rpx;
-  height: 64rpx;
+.mode-level {
+  margin-top: 16rpx;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 22rpx;
 }
 
-.dot-b {
-  top: 250rpx;
-  right: 26rpx;
-  width: 118rpx;
-  height: 48rpx;
-  animation-delay: 1.6s;
+.mode-simple {
+  background: linear-gradient(135deg, #2ecc71, #1abc9c);
 }
 
-.error-panel,
-.hero,
-.rank-menu,
-.wide-mode,
+.mode-hard {
+  background: linear-gradient(135deg, #e67e22, #d35400);
+}
+
+.mode-daily {
+  background: linear-gradient(135deg, #4a90e2, #6bb6ff);
+}
+
+.mode-speed {
+  background: linear-gradient(135deg, #2bbbd8, #3498db);
+}
+
+.mode-battle {
+  background: linear-gradient(135deg, #f1c40f, #f39c12);
+}
+
+.mode-race {
+  background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+}
+
+.bottom-nav {
+  position: fixed;
+  z-index: 8;
+  right: 24rpx;
+  bottom: 24rpx;
+  left: 24rpx;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10rpx;
+  padding: 14rpx;
+  border-radius: 28rpx;
+  background: rgba(26, 45, 64, 0.94);
+  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.24);
+}
+
+.nav-btn {
+  min-height: 78rpx;
+  border-radius: 20rpx;
+  background: transparent;
+  color: #fff;
+  font-size: 34rpx;
+}
+
+.nav-btn text {
+  display: block;
+  margin-top: 4rpx;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 20rpx;
+}
+
+.rank-popover {
+  position: fixed;
+  z-index: 9;
+  right: 24rpx;
+  bottom: 138rpx;
+  left: 24rpx;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12rpx;
+}
+
+.rank-chip {
+  height: 72rpx;
+  border-radius: 18rpx;
+  background: #edf5ff;
+  color: #2c3e50;
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
+.mask {
+  position: fixed;
+  z-index: 10;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(0, 0, 0, 0.48);
+}
+
 .bottom-sheet,
 .center-modal {
-  position: relative;
-  z-index: 1;
+  position: fixed;
+  z-index: 11;
+  background: #fff;
+  box-shadow: 0 8rpx 24rpx rgba(18, 38, 63, 0.12);
 }
 
-.error-panel {
-  margin-top: 180rpx;
-  padding: 30rpx;
-  border: 2rpx solid rgba(20, 60, 90, 0.12);
-  border-radius: 24rpx;
-  background: rgba(255, 255, 255, 0.86);
+.bottom-sheet {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  max-height: 78vh;
+  padding: 16rpx 28rpx 34rpx;
+  border-radius: 36rpx 36rpx 0 0;
 }
 
-.topbar,
-.resource-bar,
-.quick-actions,
-.mode-grid,
-.ad-row,
+.sheet-handle {
+  width: 86rpx;
+  height: 8rpx;
+  margin: 0 auto 20rpx;
+  border-radius: 999rpx;
+  background: #d8e5ee;
+}
+
 .sheet-head,
 .tabs,
 .rank-row,
 .setting-row {
-  position: relative;
-  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16rpx;
 }
 
-.profile-name,
-.profile-sub,
-.mode-title,
-.mode-desc,
-.wide-title,
-.wide-sub,
-.modal-title,
-.modal-note,
-.sheet-title,
-.sheet-sub {
-  display: block;
-}
-
-.profile-name {
-  color: #10324a;
-  font-size: 34rpx;
-  font-weight: 900;
-}
-
-.profile-sub,
-.hero-sub,
-.wide-sub,
-.sheet-sub,
-.rank-sub,
-.modal-note {
-  color: #567083;
-  font-size: 23rpx;
-}
-
-.settings-button {
-  width: 72rpx;
-  height: 72rpx;
-  border: 3rpx solid rgba(16, 50, 74, 0.18);
-  border-radius: 50%;
-  background: #ffffff;
-  color: #19435e;
-  font-size: 34rpx;
-  font-weight: 900;
-}
-
-.resource-bar {
-  margin-top: 22rpx;
-}
-
-.resource-item {
-  position: relative;
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10rpx;
-  min-height: 70rpx;
-  padding: 0 16rpx;
-  border: 3rpx solid rgba(16, 50, 74, 0.12);
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.92);
-}
-
-.resource-value {
-  color: #143a54;
-  font-size: 25rpx;
-  font-weight: 900;
-}
-
-.resource-icon {
-  width: 34rpx;
-  height: 34rpx;
-}
-
-.bolt {
-  border-radius: 10rpx;
-  background: #ff5e7d;
-  transform: skew(-14deg);
-}
-
-.coin-dot {
-  border-radius: 50%;
-  background: #ffc44d;
-  box-shadow: inset 0 0 0 7rpx #f5951b;
-}
-
-.reveal {
-  padding: 0 10rpx;
-}
-
-.magnifier {
-  position: relative;
-  width: 42rpx;
-  height: 42rpx;
-}
-
-.lens {
-  position: absolute;
-  top: 2rpx;
-  left: 2rpx;
-  width: 26rpx;
-  height: 26rpx;
-  border: 5rpx solid #29a8ff;
-  border-radius: 50%;
-  background: rgba(41, 168, 255, 0.08);
-}
-
-.handle {
-  position: absolute;
-  right: 5rpx;
-  bottom: 5rpx;
-  width: 18rpx;
-  height: 6rpx;
-  border-radius: 999rpx;
-  background: #29a8ff;
-  transform: rotate(45deg);
-}
-
-.badge {
-  position: absolute;
-  top: -8rpx;
-  right: -2rpx;
-  min-width: 30rpx;
-  height: 30rpx;
-  padding: 0 8rpx;
-  border: 3rpx solid #fff;
-  border-radius: 999rpx;
-  background: #ff315d;
-  color: #fff;
-  font-size: 20rpx;
-  font-weight: 900;
-  line-height: 30rpx;
-}
-
-.hero {
-  display: flex;
-  min-height: 260rpx;
-  margin-top: 22rpx;
-  padding: 28rpx;
-  border-radius: 34rpx;
-  background: rgba(255, 255, 255, 0.58);
-  box-shadow: 0 18rpx 36rpx rgba(43, 130, 180, 0.16);
-}
-
-.hero-copy {
-  flex: 1;
-  padding-top: 10rpx;
-}
-
-.hero-kicker {
-  color: #2b78b0;
-  font-size: 24rpx;
-  font-weight: 900;
-}
-
-.hero-title {
-  display: block;
-  margin-top: 12rpx;
-  color: #102f45;
-  font-size: 48rpx;
-  font-weight: 900;
-  line-height: 1.05;
-}
-
-.hero-sub {
-  display: block;
-  margin-top: 16rpx;
-  line-height: 1.45;
-}
-
-.pony-wrap {
-  position: relative;
-  width: 220rpx;
-}
-
-.pony {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 200rpx;
-  height: 220rpx;
-  animation: ponyBounce 1.8s ease-in-out infinite;
-}
-
-.pony-head {
-  position: absolute;
-  right: 18rpx;
-  top: 20rpx;
-  width: 142rpx;
-  height: 136rpx;
-  border: 5rpx solid #704822;
-  border-radius: 56% 48% 52% 50%;
-  background: #f3a657;
-}
-
-.pony-ear {
-  position: absolute;
-  top: 10rpx;
-  width: 44rpx;
-  height: 58rpx;
-  border: 5rpx solid #704822;
-  border-radius: 40rpx 40rpx 12rpx 12rpx;
-  background: #f3a657;
-}
-
-.pony-ear.left {
-  right: 122rpx;
-  transform: rotate(-22deg);
-}
-
-.pony-ear.right {
-  right: 36rpx;
-  transform: rotate(24deg);
-}
-
-.mane {
-  position: absolute;
-  top: -12rpx;
-  left: 42rpx;
-  width: 44rpx;
-  height: 96rpx;
-  border-radius: 999rpx;
-  background: #7a3f2d;
-  transform: rotate(15deg);
-}
-
-.eye {
-  position: absolute;
-  top: 54rpx;
-  width: 18rpx;
-  height: 18rpx;
-  border-radius: 50%;
-  background: #20140f;
-}
-
-.eye.left {
-  left: 42rpx;
-}
-
-.eye.right {
-  right: 30rpx;
-}
-
-.brow {
-  position: absolute;
-  top: 42rpx;
-  width: 34rpx;
-  height: 7rpx;
-  border-radius: 999rpx;
-  background: #20140f;
-}
-
-.brow.left {
-  left: 30rpx;
-  transform: rotate(18deg);
-}
-
-.brow.right {
-  right: 20rpx;
-  transform: rotate(-18deg);
-}
-
-.nose {
-  position: absolute;
-  right: 26rpx;
-  bottom: 30rpx;
-  width: 58rpx;
-  height: 34rpx;
-  border-radius: 999rpx;
-  background: #f7c187;
-}
-
-.mouth {
-  position: absolute;
-  right: 42rpx;
-  bottom: 22rpx;
-  width: 32rpx;
-  height: 8rpx;
-  border-radius: 999rpx;
-  background: #20140f;
-}
-
-.pony-body {
-  position: absolute;
-  right: 28rpx;
-  bottom: 0;
-  width: 138rpx;
-  height: 82rpx;
-  border: 5rpx solid #704822;
-  border-radius: 52rpx;
-  background: #dc8741;
-}
-
-.quick-actions,
-.ad-row {
-  margin-top: 18rpx;
-}
-
-.quick-button,
-.small-button {
-  flex: 1;
-  min-height: 78rpx;
-  border: 0;
-  border-radius: 22rpx;
-  background: #ffffff;
-  color: #153c58;
-  font-size: 25rpx;
-  font-weight: 900;
-  box-shadow: 0 8rpx 16rpx rgba(43, 130, 180, 0.12);
-}
-
-.rank-menu {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12rpx;
-  margin-top: 14rpx;
-}
-
-.rank-chip {
-  height: 72rpx;
-  border: 3rpx solid rgba(16, 50, 74, 0.1);
-  border-radius: 20rpx;
-  background: #fff;
-  color: #1b5578;
-  font-size: 24rpx;
-  font-weight: 900;
-}
-
-.mode-grid {
-  margin-top: 22rpx;
-}
-
-.level-card {
-  flex: 1;
-  min-height: 168rpx;
-  padding: 26rpx;
-  border: 0;
-  border-radius: 30rpx;
-  color: #fff;
-  text-align: left;
-  box-shadow: 0 12rpx 22rpx rgba(48, 72, 100, 0.18);
-}
-
-.simple-card {
-  background: linear-gradient(135deg, #169cff, #4fd0ff);
-}
-
-.hard-card {
-  background: linear-gradient(135deg, #ff4a57, #ff8b5a);
-}
-
-.level-label,
-.level-number {
-  display: block;
-  color: #fff;
-  font-weight: 900;
-}
-
-.level-label {
-  font-size: 30rpx;
-}
-
-.level-number {
-  margin-top: 18rpx;
-  font-size: 42rpx;
-}
-
-.wide-mode {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  min-height: 126rpx;
-  margin-top: 18rpx;
-  padding: 22rpx 26rpx;
-  border: 0;
-  border-radius: 30rpx;
-  text-align: left;
-  box-shadow: 0 12rpx 22rpx rgba(48, 72, 100, 0.15);
-}
-
-.daily-card {
-  background: #fff6d6;
-}
-
-.speed-card {
-  background: #e8f1ff;
-}
-
-.wide-title {
-  color: #153c58;
-  font-size: 32rpx;
-  font-weight: 900;
-}
-
-.wide-sub {
-  margin-top: 10rpx;
-}
-
-.wide-arrow {
-  flex-shrink: 0;
-  min-width: 92rpx;
-  height: 58rpx;
-  border-radius: 999rpx;
-  background: #143a54;
-  color: #fff;
-  font-size: 24rpx;
-  font-weight: 900;
-  line-height: 58rpx;
-  text-align: center;
-}
-
-.mask {
-  position: fixed;
-  z-index: 9;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  background: rgba(15, 31, 44, 0.45);
-}
-
-.bottom-sheet {
-  position: fixed;
-  z-index: 10;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  max-height: 78vh;
-  padding: 14rpx 28rpx 34rpx;
-  border-radius: 36rpx 36rpx 0 0;
-  background: #f7fbff;
-}
-
-.sheet-handle {
-  width: 76rpx;
-  height: 8rpx;
-  margin: 0 auto 20rpx;
-  border-radius: 999rpx;
-  background: #c3d4df;
-}
-
 .sheet-title,
 .modal-title {
-  color: #153c58;
+  color: #2c3e50;
   font-size: 34rpx;
   font-weight: 900;
+}
+
+.sheet-sub,
+.modal-note,
+.rank-sub {
+  color: #8a98a8;
+  font-size: 23rpx;
 }
 
 .close-button,
 .modal-close {
   width: 62rpx;
   height: 62rpx;
-  border: 0;
   border-radius: 50%;
-  background: #e6f0f7;
-  color: #153c58;
+  background: #edf5ff;
+  color: #2c3e50;
   font-size: 34rpx;
   font-weight: 900;
+  line-height: 62rpx;
 }
 
 .tabs {
-  margin-top: 20rpx;
+  margin-top: 22rpx;
   padding: 8rpx;
   border-radius: 22rpx;
-  background: #e6f0f7;
+  background: #edf5ff;
 }
 
 .tab {
   flex: 1;
   height: 64rpx;
-  border: 0;
   border-radius: 18rpx;
   background: transparent;
-  color: #567083;
+  color: #8a98a8;
   font-size: 26rpx;
   font-weight: 900;
 }
 
 .tab.active {
-  background: #29a8ff;
+  background: #2ecc71;
   color: #fff;
 }
 
@@ -957,16 +939,16 @@ async function watchGoldAd() {
   margin-bottom: 12rpx;
   padding: 14rpx 18rpx;
   border-radius: 20rpx;
-  background: #fff;
+  background: #f7fbff;
 }
 
 .rank-row.me {
-  background: #e4f7ff;
+  background: #dcf8e7;
 }
 
 .rank-no,
 .rank-score {
-  color: #ff7a3c;
+  color: #e67e22;
   font-size: 30rpx;
   font-weight: 900;
 }
@@ -980,27 +962,70 @@ async function watchGoldAd() {
 }
 
 .rank-name {
-  display: block;
-  color: #153c58;
+  color: #333333;
   font-size: 28rpx;
   font-weight: 900;
 }
 
+.sign-modal {
+  width: 660rpx;
+}
+
+.sign-calendar {
+  height: 520rpx;
+  margin-top: 22rpx;
+  padding-right: 4rpx;
+}
+
+.sign-day {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 132rpx;
+  height: 116rpx;
+  margin: 0 10rpx 12rpx 0;
+  border: 2rpx solid #e3edf5;
+  border-radius: 18rpx;
+  background: #f7fbff;
+}
+
+.sign-day.today {
+  border-color: #2ecc71;
+  background: #dcf8e7;
+}
+
+.sign-day.signed {
+  border-color: #f1c40f;
+  background: #fff7d8;
+}
+
+.sign-date,
+.sign-reward {
+  display: block;
+}
+
+.sign-date {
+  color: #2c3e50;
+  font-size: 28rpx;
+  font-weight: 900;
+}
+
+.sign-reward {
+  margin-top: 8rpx;
+  color: #8a98a8;
+  font-size: 20rpx;
+  line-height: 1.2;
+}
+
 .center-modal {
-  position: fixed;
-  z-index: 10;
   top: 50%;
   left: 50%;
   width: 620rpx;
-  padding: 34rpx 30rpx;
-  border-radius: 32rpx;
-  background: #fff;
+  padding: 36rpx 30rpx;
+  border-radius: 28rpx;
   transform: translate(-50%, -50%);
   text-align: center;
-}
-
-.center-modal.compact {
-  width: 570rpx;
 }
 
 .modal-close {
@@ -1009,154 +1034,283 @@ async function watchGoldAd() {
   right: 18rpx;
 }
 
+.lottery-modal {
+  width: 670rpx;
+  padding: 26rpx 28rpx 34rpx;
+  border: 4rpx solid rgba(255, 255, 255, 0.4);
+  border-radius: 34rpx;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(241, 196, 15, 0.2), transparent 18%),
+    radial-gradient(circle at 88% 18%, rgba(255, 255, 255, 0.22), transparent 16%),
+    linear-gradient(180deg, #1aa889 0%, #117764 100%);
+  box-shadow: 0 12rpx 0 rgba(13, 90, 77, 0.75), 0 26rpx 48rpx rgba(0, 0, 0, 0.28);
+  color: #fff;
+  overflow: visible;
+}
+
+.lottery-close {
+  top: 14rpx;
+  right: 14rpx;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.lottery-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16rpx;
+  margin-top: -6rpx;
+}
+
+.lottery-title,
+.lottery-title-deco {
+  color: #fff7ba;
+  font-size: 54rpx;
+  font-weight: 1000;
+  line-height: 1;
+  text-shadow: 0 5rpx 0 rgba(18, 105, 87, 0.8), 0 0 18rpx rgba(255, 255, 255, 0.35);
+}
+
+.lottery-title-deco {
+  color: #87f5c8;
+  font-size: 38rpx;
+}
+
 .wheel-wrap {
   position: relative;
-  width: 390rpx;
-  height: 390rpx;
-  margin: 30rpx auto 18rpx;
+  width: 560rpx;
+  height: 560rpx;
+  margin: 24rpx auto 26rpx;
+  border-radius: 50%;
+  background: rgba(255, 247, 186, 0.16);
+  box-shadow: inset 0 0 0 8rpx rgba(255, 255, 255, 0.14), 0 0 36rpx rgba(241, 196, 15, 0.35);
+}
+
+.wheel-wrap::before,
+.wheel-wrap::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.wheel-wrap::before {
+  inset: 26rpx;
+  z-index: 1;
+  border: 8rpx solid #f8df6f;
+  box-shadow: inset 0 0 0 8rpx rgba(35, 152, 126, 0.6);
+}
+
+.wheel-wrap::after {
+  inset: 48rpx;
+  z-index: 3;
+  border: 6rpx dotted rgba(255, 255, 210, 0.95);
+}
+
+.wheel-pointer {
+  position: absolute;
+  z-index: 7;
+  top: -4rpx;
+  left: 50%;
+  width: 70rpx;
+  height: 82rpx;
+  border: 6rpx solid #f3d75b;
+  border-radius: 18rpx;
+  background: linear-gradient(180deg, #77e9a2 0%, #24b66d 100%);
+  box-shadow: 0 6rpx 0 rgba(18, 105, 87, 0.8);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.wheel-pointer::after {
+  content: "";
+  position: absolute;
+  right: 16rpx;
+  bottom: -24rpx;
+  width: 0;
+  height: 0;
+  border-left: 16rpx solid transparent;
+  border-right: 16rpx solid transparent;
+  border-top: 30rpx solid #f1c40f;
+  transform: rotate(-45deg);
 }
 
 .wheel {
   position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  border: 16rpx solid #ffcf5d;
+  inset: 42rpx;
+  border: 10rpx solid #f6dd77;
   border-radius: 50%;
-  background: linear-gradient(135deg, #29a8ff 0%, #29a8ff 49%, #ffd66d 50%, #ffd66d 100%);
-  transition: transform 0.85s cubic-bezier(0.2, 0.82, 0.18, 1);
+  background: conic-gradient(
+    #56c8e8 0deg 60deg,
+    #2ecc71 60deg 120deg,
+    #56c8e8 120deg 180deg,
+    #2ecc71 180deg 240deg,
+    #56c8e8 240deg 300deg,
+    #2ecc71 300deg 360deg
+  );
+  transition: transform 0.9s cubic-bezier(0.18, 0.9, 0.16, 1);
+  overflow: hidden;
 }
 
-.pointer {
+.wheel-sector {
   position: absolute;
-  z-index: 1;
-  top: -10rpx;
+  z-index: 2;
+  width: 150rpx;
+  height: 112rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.wheel-sector.blue,
+.wheel-sector.green {
+  background: transparent;
+}
+
+.wheel-sector:nth-child(1) {
+  top: 42rpx;
   left: 50%;
-  width: 0;
-  height: 0;
-  border-left: 22rpx solid transparent;
-  border-right: 22rpx solid transparent;
-  border-top: 42rpx solid #153c58;
   transform: translateX(-50%);
 }
 
-.wheel-prize {
-  position: absolute;
+.wheel-sector:nth-child(2) {
+  top: 118rpx;
+  right: 34rpx;
+  transform: rotate(26deg);
+}
+
+.wheel-sector:nth-child(3) {
+  right: 34rpx;
+  bottom: 114rpx;
+  transform: rotate(-26deg);
+}
+
+.wheel-sector:nth-child(4) {
+  bottom: 42rpx;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.wheel-sector:nth-child(5) {
+  bottom: 114rpx;
+  left: 34rpx;
+  transform: rotate(26deg);
+}
+
+.wheel-sector:nth-child(6) {
+  top: 118rpx;
+  left: 34rpx;
+  transform: rotate(-26deg);
+}
+
+.reward-value,
+.reward-icon {
+  display: block;
+  color: #6b3b18;
+  font-weight: 1000;
+  text-align: center;
+  text-shadow: 0 2rpx 0 rgba(255, 255, 255, 0.38);
+}
+
+.reward-value {
+  max-width: 136rpx;
+  font-size: 24rpx;
+  line-height: 1.15;
+}
+
+.reward-icon {
+  margin-top: 6rpx;
+  font-size: 48rpx;
+  line-height: 1;
+}
+
+.wheel-sector.blue .reward-value,
+.wheel-sector.blue .reward-icon {
   color: #fff;
-  font-size: 26rpx;
-  font-weight: 900;
+  text-shadow: 0 3rpx 0 rgba(30, 102, 126, 0.45);
 }
 
-.p1 {
-  top: 76rpx;
-  left: 168rpx;
+.wheel-center {
+  position: absolute;
+  z-index: 8;
+  top: 50%;
+  left: 50%;
+  width: 134rpx;
+  height: 134rpx;
+  padding: 0;
+  border: 8rpx solid #f7d85d;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #35d989 0%, #179b6f 100%);
+  box-shadow: 0 8rpx 0 #0b6e56, inset 0 8rpx 12rpx rgba(255, 255, 255, 0.24);
+  color: #fff7ba;
+  font-size: 34rpx;
+  font-weight: 1000;
+  line-height: 118rpx;
+  transform: translate(-50%, -50%);
 }
 
-.p2 {
-  top: 170rpx;
-  right: 42rpx;
+.wheel-center:active,
+.lottery-main-btn:active {
+  transform: translate(-50%, -48%) scale(0.96);
 }
 
-.p3 {
-  bottom: 76rpx;
-  left: 148rpx;
+.lottery-main-btn {
+  width: 440rpx;
+  height: 88rpx;
+  margin: -2rpx auto 0;
+  border: 4rpx solid rgba(255, 255, 255, 0.58);
+  border-radius: 999rpx;
+  background: linear-gradient(180deg, #8df278 0%, #2ecc71 68%, #22a95b 100%);
+  box-shadow: 0 8rpx 0 #118a53, 0 12rpx 24rpx rgba(0, 0, 0, 0.2);
+  color: #fff;
+  font-size: 34rpx;
+  font-weight: 1000;
+  line-height: 80rpx;
+  text-shadow: 0 3rpx 0 rgba(17, 120, 76, 0.55);
 }
 
-.p4 {
-  top: 170rpx;
-  left: 44rpx;
+.lottery-main-btn:active {
+  transform: scale(0.97);
+}
+
+.wheel-center[disabled],
+.lottery-main-btn[disabled] {
+  opacity: 0.82;
+}
+
+.lottery-note {
+  display: block;
+  margin-top: 18rpx;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 24rpx;
+  font-weight: 800;
 }
 
 .modal-note {
   margin: 16rpx auto 0;
-  max-width: 470rpx;
+  max-width: 500rpx;
   line-height: 1.5;
 }
 
-.primary-action,
-.ghost-action,
-.danger-action {
+.modal-action {
   width: 100%;
-  height: 78rpx;
   margin-top: 18rpx;
-  border-radius: 22rpx;
-  font-size: 27rpx;
-  font-weight: 900;
 }
 
-.primary-action {
-  border: 0;
-  background: #29a8ff;
-  color: #fff;
-}
-
-.ghost-action {
-  border: 2rpx solid #d8e8f2;
-  background: #f6fbff;
-  color: #153c58;
-}
-
-.danger-action {
-  border: 0;
-  background: #ff4a57;
-  color: #fff;
-}
-
-.big-magnifier {
-  position: relative;
-  width: 96rpx;
-  height: 96rpx;
-  margin: 10rpx auto 18rpx;
-}
-
-.big-lens {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 62rpx;
-  height: 62rpx;
-  border: 10rpx solid #29a8ff;
-  border-radius: 50%;
-}
-
-.big-handle {
-  position: absolute;
-  right: 6rpx;
-  bottom: 12rpx;
-  width: 44rpx;
-  height: 12rpx;
-  border-radius: 999rpx;
-  background: #29a8ff;
-  transform: rotate(45deg);
+.settings-modal {
+  text-align: left;
 }
 
 .setting-row {
-  min-height: 74rpx;
+  min-height: 78rpx;
   margin-top: 16rpx;
   padding: 0 18rpx;
   border-radius: 18rpx;
-  background: #f6fbff;
-  color: #153c58;
+  background: #f7fbff;
+  color: #2c3e50;
   font-size: 28rpx;
   font-weight: 900;
-}
-
-@keyframes ponyBounce {
-  0%, 100% {
-    transform: translateY(0) rotate(-1deg);
-  }
-  50% {
-    transform: translateY(-12rpx) rotate(2deg);
-  }
-}
-
-@keyframes floatCloud {
-  0%, 100% {
-    transform: translateX(0);
-  }
-  50% {
-    transform: translateX(26rpx);
-  }
 }
 </style>

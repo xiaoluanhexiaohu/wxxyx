@@ -89,7 +89,9 @@ export interface ProgressState {
   dailyAttemptsUsed: number;
   speedrunAttemptsUsed: number;
   signInDate: string;
+  signInHistory: Record<string, string>;
   lotteryDate: string;
+  speedrunRevealUsed: number;
   modeLevels: Record<GameMode, number>;
   bestModeLevels: Record<GameMode, number>;
   selectedMode: GameMode;
