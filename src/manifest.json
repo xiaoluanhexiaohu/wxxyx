@@ -1,0 +1,27 @@
+{
+  "name": "逻辑推理数字",
+  "appid": "__UNI__LOGIC_NUMBER",
+  "description": "递进式数字逻辑推理小程序游戏",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "mp-weixin": {
+    "appid": "wx802da89eb495ecb6",
+    "setting": {
+      "urlCheck": true,
+      "es6": true,
+      "postcss": true,
+      "minified": true
+    },
+    "usingComponents": true,
+    "permission": {}
+  },
+  "mp-toutiao": {
+    "appid": "请替换为抖音小程序 AppID",
+    "setting": {
+      "es6": true,
+      "postcss": true,
+      "minified": true
+    }
+  }
+}

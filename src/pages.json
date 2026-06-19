@@ -1,0 +1,40 @@
+{
+  "pages": [
+    {
+      "path": "pages/login/login",
+      "style": {
+        "navigationBarTitleText": "注册登录",
+        "navigationStyle": "custom",
+        "backgroundColor": "#f7fbff"
+      }
+    },
+    {
+      "path": "pages/home/home",
+      "style": {
+        "navigationBarTitleText": "逻辑推理数字",
+        "navigationStyle": "custom",
+        "backgroundColor": "#121212"
+      }
+    },
+    {
+      "path": "pages/play/play",
+      "style": {
+        "navigationBarTitleText": "数字推理",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/battle/battle",
+      "style": {
+        "navigationBarTitleText": "好友对战",
+        "navigationStyle": "custom"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "逻辑推理数字",
+    "navigationBarBackgroundColor": "#121212",
+    "backgroundColor": "#f7fbff"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "logic-number-mini-game",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "dev:mp-toutiao": "uni -p mp-toutiao",
+    "build:mp-weixin": "uni build -p mp-weixin",
+    "build:mp-toutiao": "uni build -p mp-toutiao"
+  },
+  "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-alpha-1000920260615733",
+    "@dcloudio/uni-components": "3.0.0-alpha-1000920260615733",
+    "@dcloudio/uni-h5": "3.0.0-alpha-1000920260615733",
+    "@dcloudio/uni-mp-toutiao": "3.0.0-alpha-1000920260615733",
+    "@dcloudio/uni-mp-weixin": "3.0.0-alpha-1000920260615733",
+    "pinia": "3.0.4",
+    "vue": "3.5.35"
+  },
+  "devDependencies": {
+    "@dcloudio/types": "3.4.31",
+    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-1000920260615733",
+    "typescript": "6.0.3",
+    "vite": "7.3.3",
+    "vue-tsc": "3.3.5"
+  }
+}
