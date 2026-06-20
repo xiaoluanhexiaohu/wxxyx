@@ -1,5 +1,13 @@
 {
   "name": "logic-number",
   "version": "1.0.0",
-  "main": "index.js"
+  "description": "逻辑大师后端",
+  "main": "index.js",
+  "dependencies": {},
+  "cloudfunction-config": {
+    "environmentVariables": {
+      "WEIXIN_APPID": "wxfa8223bdc15c8bc4",
+      "WEIXIN_SECRET": "d644ad4ca8b9ab9cdd040d2e86a1e527"
+    }
+  }
 }
