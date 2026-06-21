@@ -1,6 +1,7 @@
 "use strict";
 
 const api = require("./api");
+const audioManager = require("./AudioManager");
 const storage = require("./storage");
 const {
   DIFFICULTIES,
@@ -216,6 +217,8 @@ class GameController {
     if (index >= 0) {
       this.input[index] = String(digit);
       this.persistSession();
+      // Number placement is this puzzle game's equivalent of a tile merge action.
+      audioManager.playSfx("merge");
     }
   }
 
@@ -251,10 +254,12 @@ class GameController {
       createdAt: Date.now(),
     });
     if (result.exact === puzzleSnapshot.difficulty.digitLength) {
+      audioManager.playSfx("win");
       const message = this.finishPuzzle();
       return { ok: true, solved: true, failed: false, message, puzzle: puzzleSnapshot };
     }
     if (this.guesses.length >= MAX_GUESSES) {
+      audioManager.playSfx("lose");
       this.persistSession();
       return { ok: true, solved: false, failed: true, message: "三次机会已用完，可看视频额外获得 1 次机会。" };
     }

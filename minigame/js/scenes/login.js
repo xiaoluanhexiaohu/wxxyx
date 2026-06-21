@@ -1,6 +1,7 @@
 "use strict";
 
 function drawLogin(app, ui, height) {
+  app.audio.stopBgm();
   const ctx = ui.ctx;
   const gradient = ctx.createLinearGradient(0, 0, 375, height);
   gradient.addColorStop(0, "#2C3E50");

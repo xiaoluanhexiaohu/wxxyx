@@ -6,6 +6,7 @@ const drawHome = require("./scenes/home");
 const drawPlay = require("./scenes/play");
 const drawBattle = require("./scenes/battle");
 const adManager = require("./core/adManager");
+const audioManager = require("./core/AudioManager");
 const api = require("./core/api");
 const storage = require("./core/storage");
 const { createLeaderboard } = require("./core/rankings");
@@ -21,6 +22,7 @@ class GameApp {
     this.ui = new CanvasUI(ctx, 375, this.designHeight);
     this.controller = new GameController();
     this.controller.bootstrap();
+    this.audio = audioManager;
 
     this.scene = this.controller.isLoggedIn ? (this.controller.puzzle ? "play" : "home") : "login";
     this.overlay = null;
@@ -32,7 +34,12 @@ class GameApp {
     this.loginNickname = "数字玩家";
     this.toastMessage = "";
     this.toastUntil = 0;
-    this.settings = storage.read("logic-number-settings", { sound: true, music: true, notice: true });
+    const savedSettings = storage.read("logic-number-settings", { notice: true });
+    this.settings = {
+      sound: this.audio.isSfxEnabled,
+      music: this.audio.isBgmEnabled,
+      notice: savedSettings.notice !== false,
+    };
 
     this.rankMode = "simple";
     this.rankScope = "global";
@@ -70,6 +77,7 @@ class GameApp {
       const action = this.ui.hit(x, y);
       if (action) {
         try {
+          this.audio.playSfx("click");
           action();
         } catch (error) {
           this.toast(error && error.message ? error.message : "操作失败，请重试");
@@ -361,7 +369,15 @@ class GameApp {
   }
 
   toggleSetting(key) {
-    this.settings[key] = !this.settings[key];
+    if (key === "music") this.settings.music = this.audio.toggleBgm();
+    else if (key === "sound") this.settings.sound = this.audio.toggleSfx();
+    else this.settings[key] = !this.settings[key];
+    storage.write("logic-number-settings", this.settings);
+  }
+
+  toggleAudio(type) {
+    if (type === "bgm") this.settings.music = this.audio.toggleBgm();
+    if (type === "sfx") this.settings.sound = this.audio.toggleSfx();
     storage.write("logic-number-settings", this.settings);
   }
 

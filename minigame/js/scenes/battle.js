@@ -1,6 +1,7 @@
 "use strict";
 
 function drawBattle(app, ui, height) {
+  app.audio.playBgm("battle");
   ui.ctx.fillStyle = "#2C3E50";
   ui.ctx.fillRect(0, 0, 375, height);
   ui.text("好友对战", 24, 54, 28, "#FFFFFF", "left", "bold");

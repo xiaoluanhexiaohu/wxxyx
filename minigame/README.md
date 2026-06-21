@@ -27,6 +27,26 @@
 
 未填写云环境或广告位时，工程自动使用本地存储和调试奖励，便于完整试玩；正式上线前必须填写真实配置。
 
+## 音频资源
+
+在仓库根目录执行以下任一命令，可重新下载四个占位音效：
+
+```powershell
+npm run audio:download
+```
+
+```powershell
+node scripts/download_wx_audio.js
+```
+
+生成原创主页和对战背景音乐：
+
+```powershell
+npm run audio:generate-bgm
+```
+
+固定路径为 `audio/bgm_home.wav` 和 `audio/bgm_battle.wav`。音乐、音效开关通过微信本地存储持久化。
+
 ## 目录说明
 
 ```text

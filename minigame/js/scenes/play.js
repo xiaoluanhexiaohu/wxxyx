@@ -12,6 +12,7 @@ const modeNames = {
 };
 
 function drawPlay(app, ui, height) {
+  app.audio.playBgm("battle");
   const game = app.controller;
   const puzzle = game.puzzle || (app.result && app.result.puzzle);
   ui.ctx.fillStyle = "#20384F";

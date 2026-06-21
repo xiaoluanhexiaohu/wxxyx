@@ -3,6 +3,7 @@
 const { LOTTERY_REWARDS, REVEAL_TOOL_COST, SIGN_IN_REWARDS, STAMINA_RECOVER_MS } = require("../core/GameController");
 
 function drawHome(app, ui, height) {
+  app.audio.playBgm("home");
   drawBackground(ui, height);
   const game = app.controller;
 
@@ -10,7 +11,9 @@ function drawHome(app, ui, height) {
   ui.text("🧠", 44, 53, 25, "#333333", "center");
   ui.text((game.profile && game.profile.nickname) || "数字玩家", 80, 44, 18, "#FFFFFF", "left", "bold");
   ui.text(`累计通关 ${game.totalClears}`, 80, 66, 12, "#DDEAF1");
-  ui.button("分享", 302, 36, 50, 34, "#2ECC71", () => app.shareInvite(), { fontSize: 12, radius: 10 });
+  ui.button(app.audio.isBgmEnabled ? "♫" : "×♫", 264, 35, 28, 30, app.audio.isBgmEnabled ? "#2ECC71" : "#6F818C", () => app.toggleAudio("bgm"), { fontSize: 12, radius: 9, shadow: false });
+  ui.button(app.audio.isSfxEnabled ? "声" : "静", 298, 35, 28, 30, app.audio.isSfxEnabled ? "#4A90E2" : "#6F818C", () => app.toggleAudio("sfx"), { fontSize: 11, radius: 9, shadow: false });
+  ui.button("享", 332, 35, 24, 30, "#F1C40F", () => app.shareInvite(), { textColor: "#4A3A00", fontSize: 11, radius: 9, shadow: false });
 
   drawResources(app, ui, 20, 90);
   ui.text("选择模式", 22, 188, 19, "#FFFFFF", "left", "bold");

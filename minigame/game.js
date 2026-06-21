@@ -2,6 +2,7 @@
 
 const config = require("./js/config");
 const GameApp = require("./js/GameApp");
+const audioManager = require("./js/core/AudioManager");
 
 function getWindowInfo() {
   if (typeof wx.getWindowInfo === "function") {
@@ -30,6 +31,7 @@ GameGlobal.viewport = {
   height: screenHeight,
   pixelRatio,
 };
+GameGlobal.audioManager = audioManager;
 
 if (wx.cloud && typeof wx.cloud.init === "function") {
   const cloudOptions = { traceUser: true };
